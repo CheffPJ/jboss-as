@@ -243,6 +243,7 @@
         <module>jaxrs</module>
         <module>jmx</module>
         <module>jpa</module>
+        <module>linux</module>
         <module>logging</module>
         <module>mc</module>
         <module>messaging</module>
