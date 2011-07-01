@@ -31,10 +31,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.jboss.as.protocol.ProtocolChannel;
 import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.SimpleDataInput;
+import org.jboss.marshalling.SimpleDataOutput;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.CloseHandler;
 import org.jboss.remoting3.MessageInputStream;
-import org.jboss.remoting3.MessageOutputStream;
 import org.xnio.IoUtils;
 
 /**
@@ -44,12 +44,16 @@ import org.xnio.IoUtils;
  */
 public class ManagementChannel extends ProtocolChannel {
 
+    private final ManagementChannelPinger pinger = ManagementChannelPinger.getInstance();
     private final RequestReceiver requestReceiver = new RequestReceiver();
     private final ResponseReceiver responseReceiver = new ResponseReceiver();
     private final AtomicBoolean byeByeSent = new AtomicBoolean();
+    private volatile long lastResponseReceived;
+    private AtomicBoolean awaitingPong = new AtomicBoolean();
 
     ManagementChannel(String name, Channel channel) {
         super(name, channel);
+        pinger.addChannel(this);
     }
 
     /**
@@ -72,16 +76,20 @@ public class ManagementChannel extends ProtocolChannel {
         if(!byeByeSent.compareAndSet(false, true)) {
             return;
         }
+        log.tracef("Closing %s by sending bye bye", this);
+        pinger.removeChannel(this);
+        ManagementByeByeHeader byeByeHeader = new ManagementByeByeHeader(ManagementProtocol.VERSION);
 
         try {
-            final MessageOutputStream out = writeMessage();
+            SimpleDataOutput out = new SimpleDataOutput(Marshalling.createByteOutput(writeMessage()));
             try {
-                out.write(ManagementProtocol.BYE_BYE);
+                byeByeHeader.write(out);
             } catch (IOException ingore) {
             }finally {
                 IoUtils.safeClose(out);
             }
         } finally {
+            log.tracef("Invoking close on %s", this);
             super.close();
         }
     }
@@ -97,19 +105,32 @@ public class ManagementChannel extends ProtocolChannel {
         Exception error = null;
         ManagementRequestHeader requestHeader = null;
         ManagementRequestHandler requestHandler = null;
+        boolean wasPing = false;
         try {
             ManagementProtocolHeader header;
-            try {
-                header = ManagementProtocolHeader.parse(input);
-            } catch (ByeByeException bbe) {
-                close();
-                return;
-            }
-            if (header.isRequest()) {
+            header = ManagementProtocolHeader.parse(input);
+
+            switch (header.getType()) {
+            case ManagementProtocol.TYPE_REQUEST:
                 requestHeader = (ManagementRequestHeader)header;
                 requestHandler = requestReceiver.readRequest(requestHeader, input);
-            } else {
+                break;
+            case ManagementProtocol.TYPE_RESPONSE:
+                gotIncomingResponse();
                 responseReceiver.handleResponse((ManagementResponseHeader)header, input);
+                break;
+            case ManagementProtocol.TYPE_BYE_BYE:
+                log.tracef("Received bye bye on %s, closing", this);
+                close();
+                break;
+            case ManagementProtocol.TYPE_PING:
+                wasPing = true;
+                log.tracef("Received ping on %s", this);
+                break;
+            case ManagementProtocol.TYPE_PONG:
+                log.tracef("Received pong on %s", this);
+                gotIncomingResponse();
+                break;
             }
         } catch (Exception e) {
             error = e;
@@ -137,11 +158,22 @@ public class ManagementChannel extends ProtocolChannel {
             }
 
             if (error != null) {
+                log.tracef(error, "Error processing request %s", this);
                 //TODO temporary debug stack
                 error.printStackTrace();
             }
             requestReceiver.writeResponse(requestHeader, requestHandler, error);
+        } else if (wasPing) {
+            log.tracef("Sending pong on %s", this);
+            ManagementPongHeader pongHeader = new ManagementPongHeader(ManagementProtocol.VERSION);
+            sendHeaderAndCloseOnError(pongHeader);
         }
+    }
+
+    private void gotIncomingResponse() {
+        log.tracef("Resetting ping/response status on %s", this);
+        lastResponseReceived = System.currentTimeMillis();
+        awaitingPong.set(false);
     }
 
     void executeRequest(ManagementRequest<?> request, ManagementResponseHandler<?> responseHandler) throws IOException {
@@ -181,6 +213,43 @@ public class ManagementChannel extends ProtocolChannel {
         }
         throw new IOException(e);
 
+    }
+
+    void ping(long timeOut) {
+        if (awaitingPong.get()) {
+            if (System.currentTimeMillis() - lastResponseReceived > timeOut) {
+                try {
+                    //We received no ping within the timeout
+                    log.tracef("Closing %s did not receive any pong within %dms", this, timeOut);
+                    close();
+                } catch (IOException ignore) {
+                }
+            }
+        } else {
+            log.tracef("No data received recently on %s, pinging to determine if the other end is alive", this);
+            awaitingPong.set(true);
+            ManagementPingHeader pingHeader = new ManagementPingHeader(ManagementProtocol.VERSION);
+            sendHeaderAndCloseOnError(pingHeader);
+        }
+    }
+
+    private void sendHeaderAndCloseOnError(ManagementProtocolHeader header) {
+        boolean ok = false;
+        try {
+            SimpleDataOutput out = new SimpleDataOutput(Marshalling.createByteOutput(writeMessage()));
+            try {
+                header.write(out);
+                ok = true;
+            }finally {
+                IoUtils.safeClose(out);
+            }
+        } catch (IOException ingore) {
+        } finally {
+            if (!ok) {
+                log.tracef("Error sending 0x%X on %s, closing channel", header.getType(), this);
+                IoUtils.safeClose(this);
+            }
+        }
     }
 
     private class RequestReceiver {

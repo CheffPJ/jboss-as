@@ -29,12 +29,12 @@
     <parent>
         <groupId>org.jboss.as</groupId>
         <artifactId>jboss-as-parent</artifactId>
-        <version>7.0.0.Beta4-SNAPSHOT</version>
+        <version>7.0.0.CR2-SNAPSHOT</version>
     </parent>
 
     <groupId>org.jboss.as</groupId>
     <artifactId>jboss-as-testsuite</artifactId>
-    <version>7.0.0.Beta4-SNAPSHOT</version>
+    <version>7.0.0.CR2-SNAPSHOT</version>
 
     <name>JBoss Application Server Test Suite: Aggregator</name>
 
@@ -133,9 +133,10 @@
                             <resources>
                                 <resource>
                                     <directory>${jboss.home}</directory>
-                                    <includes>
-                                        <include>**</include>
-                                    </includes>
+                                    <excludes>
+                                        <exclude>modules/</exclude>
+                                        <exclude>bundles/</exclude>
+                                    </excludes>
                                 </resource>
                             </resources>
                         </configuration>
@@ -162,6 +163,10 @@
                           <name>jboss.home</name>
                           <value>${basedir}/target/jbossas</value>
                         </property>
+                        <property>
+                          <name>module.path</name>
+                          <value>${jboss.home}/modules</value>
+                        </property>
                     </systemProperties>
                     <redirectTestOutputToFile>true</redirectTestOutputToFile>
                 </configuration>
@@ -182,8 +187,8 @@
                 <skip.stress.tests>false</skip.stress.tests>
             </properties>
             <modules>
-                <module>stress</module>
-                <module>benchmark</module>
+                <!--<module>stress</module>
+                <module>benchmark</module>-->
                 <module>spec</module>
                 <module>integration</module>
                 <module>clustering</module>

@@ -33,11 +33,15 @@ public class ManagedContainerConfiguration extends CommonContainerConfiguration 
 
     private String javaHome = System.getenv("JAVA_HOME");
 
+    private String modulePath = System.getProperty("module.path");
+
     private String javaVmArguments = "-Xmx512m -XX:MaxPermSize=128m";
 
     private int startupTimeoutInSeconds = 30;
 
     private boolean outputToConsole = true;
+
+    private String serverConfig = System.getProperty("jboss.server.config.file.name",  "standalone-ha.xml");
 
     @Override
     public void validate() throws ConfigurationException {
@@ -117,5 +121,31 @@ public class ManagedContainerConfiguration extends CommonContainerConfiguration 
      */
     public boolean isOutputToConsole() {
         return outputToConsole;
+    }
+
+    /**
+     * Get the server configuration file name.  Equivalent to [-server-config=...] on the command line.
+     *
+     * @return the server config
+     */
+    public String getServerConfig() {
+        return serverConfig;
+    }
+
+    /**
+     * Set the server configuration file name.  Equivalent to [-server-config=...] on the command line.
+     *
+     * @param serverConfig the server config
+     */
+    public void setServerConfig(String serverConfig) {
+        this.serverConfig = serverConfig;
+    }
+
+    public String getModulePath() {
+        return modulePath;
+    }
+
+    public void setModulePath(final String modulePath) {
+        this.modulePath = modulePath;
     }
 }

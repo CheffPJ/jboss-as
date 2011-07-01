@@ -226,6 +226,7 @@ public enum Phase {
     public static final int PARSE_MESSAGE_DRIVEN_ANNOTATION             = 0x1500;
     public static final int PARSE_EJB_TRANSACTION_MANAGEMENT            = 0x1600;
     public static final int PARSE_EJB_BUSINESS_VIEW_ANNOTATION          = 0x1700;
+    public static final int PARSE_WS_EJB_INTEGRATION                    = 0x1701;
     public static final int PARSE_EJB_STARTUP_ANNOTATION                = 0x1800;
     public static final int PARSE_EJB_SECURITY_DOMAIN_ANNOTATION        = 0x1801;
     public static final int PARSE_EJB_CONCURRENCY_MANAGEMENT_ANNOTATION = 0x1900;
@@ -328,7 +329,6 @@ public enum Phase {
     public static final int POST_MODULE_EAR_DEPENDENCY                  = 0x0C00;
     public static final int POST_MODULE_WELD_BEAN_ARCHIVE               = 0x0D00;
     public static final int POST_MODULE_WELD_PORTABLE_EXTENSIONS        = 0x0E00;
-    public static final int POST_MODULE_WS_EJB_INTEGRATION              = 0x0F00;
     // should come before ejb jndi bindings processor
     public static final int POST_MODULE_EJB_IMPLICIT_NO_INTERFACE_VIEW  = 0x1000;
     public static final int POST_MODULE_EJB_JNDI_BINDINGS               = 0x1100;
@@ -342,9 +342,11 @@ public enum Phase {
     public static final int POST_MODULE_RESOLVE_EJB_INJECTIONS          = 0x1900;
     public static final int POST_MODULE_JAXRS_SCANNING                  = 0x1A00;
     public static final int POST_MODULE_JAXRS_COMPONENT                 = 0x1B00;
+    public static final int POST_MODULE_JAXRS_CDI_INTEGRATION           = 0x1C00;
 
     // INSTALL
     public static final int INSTALL_JNDI_DEPENDENCY_SETUP               = 0x0100;
+    public static final int INSTALL_JPA_INTERCEPTORS                    = 0x0200;
     public static final int INSTALL_APP_CONTEXT                         = 0x0300;
     public static final int INSTALL_MODULE_CONTEXT                      = 0x0400;
     public static final int INSTALL_SERVICE_ACTIVATOR                   = 0x0500;

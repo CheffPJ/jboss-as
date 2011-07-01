@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.allen_sauer.gwt.log.client.FirebugLogger;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import org.jboss.as.controller.operations.common.SystemPropertyAddHandler;
@@ -96,7 +95,7 @@ public class ServerOperationResolver {
         UNKNOWN(null),
         PATH("path"),
         SYSTEM_PROPERTY("system-property"),
-        MANAGEMENT("management"),
+        CORE_SERVICE("core-service"),
         INTERFACE("interface"),
         JVM("jvm"),
         SERVER("server"),
@@ -504,7 +503,7 @@ public class ServerOperationResolver {
                 case SYSTEM_PROPERTY: {
                     return getServerSystemPropertyOperations(operation, address, Level.HOST,  domain, null, host);
                 }
-                case MANAGEMENT: {
+                case CORE_SERVICE: {
                     // TODO does server need to know about change?
                     return Collections.emptyMap();
                 }
