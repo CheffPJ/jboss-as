@@ -4,7 +4,7 @@ sudo virt-install \
 --disk /var/lib/libvirt/images/as7-02.img,size=5 \
 --vcpus=1 \
 --ram=1024 \
---location=http://192.168.122.1/trees/fedora14 \
+--location="http://download.fedoraproject.org/pub/fedora/linux/releases/15/Fedora/x86_64/os"
 --os-type=linux \
 --os-variant=fedora14 \
---extra-args="ks=http://192.168.122.1/ks/fedora14-base-vm.ks"
+--extra-args="ks=https://raw.github.com/CheffPJ/jboss-as/linux_init/linux/src/main/resources/ks/base-ks.cfg"
