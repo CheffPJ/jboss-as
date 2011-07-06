@@ -1,0 +1,25 @@
+# This runs JBoss as a Service Using the Fedora 15 services Infrastructure
+#
+# The following doucmentation helped in this effort:
+#
+#  * http://patrakov.blogspot.com/2011/01/writing-systemd-service-files.html
+#  * http://0pointer.de/blog/projects/systemd-docs.html
+# 
+
+[Unit]
+Description=JBoss Application Server Default Start-up
+Wants=basic.target
+Wants=network.target
+After=basic.target
+After=network.target
+
+[Service]
+ExecStart=/opt/jboss-as/bin/domain.sh
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=jboss-as
+
+[Install]
+WantedBy=multi-user.target
+
