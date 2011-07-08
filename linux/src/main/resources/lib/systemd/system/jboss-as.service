@@ -5,10 +5,12 @@
 #  * http://patrakov.blogspot.com/2011/01/writing-systemd-service-files.html
 #  * http://0pointer.de/blog/projects/systemd-docs.html
 #  * man pages: systemd.unit, systemd.service, systemd.special
+#  * irc #systemd on freednode (thanks to mezcalero)
 
 [Unit]
 Description=JBoss Application Server Default Start-up
-After=runlevel3.target
+Requires=NetworkManager-wait-online.service
+After=network.target
 
 [Service]
 ExecStart=/opt/jboss-as/bin/domain.sh
