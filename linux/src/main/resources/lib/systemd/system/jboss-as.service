@@ -8,9 +8,7 @@
 
 [Unit]
 Description=JBoss Application Server Default Start-up
-After=basic.target
-After=network.target
-After=syslog.target
+After=runlevel3.target
 
 [Service]
 ExecStart=/opt/jboss-as/bin/domain.sh
