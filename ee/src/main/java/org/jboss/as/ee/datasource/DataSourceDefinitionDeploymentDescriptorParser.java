@@ -26,6 +26,7 @@ import org.jboss.as.ee.component.AbstractDeploymentDescriptorBindingsProcessor;
 import org.jboss.as.ee.component.BindingConfiguration;
 import org.jboss.as.ee.component.ComponentDescription;
 import org.jboss.as.ee.component.DeploymentDescriptorEnvironment;
+import org.jboss.as.ee.component.EEApplicationClasses;
 import org.jboss.as.ee.component.EEModuleDescription;
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
@@ -49,7 +50,7 @@ public class DataSourceDefinitionDeploymentDescriptorParser extends AbstractDepl
     private static final String[] EMPTY_STRING_ARRAY = {};
 
     @Override
-    protected List<BindingConfiguration> processDescriptorEntries(final DeploymentUnit deploymentUnit, final DeploymentDescriptorEnvironment environment, final EEModuleDescription moduleDescription, final ComponentDescription componentDescription, final ClassLoader classLoader, final DeploymentReflectionIndex deploymentReflectionIndex) throws DeploymentUnitProcessingException {
+    protected List<BindingConfiguration> processDescriptorEntries(final DeploymentUnit deploymentUnit, final DeploymentDescriptorEnvironment environment, final EEModuleDescription moduleDescription, final ComponentDescription componentDescription, final ClassLoader classLoader, final DeploymentReflectionIndex deploymentReflectionIndex, final EEApplicationClasses applicationClasses) throws DeploymentUnitProcessingException {
         DataSourcesMetaData dataSources = environment.getEnvironment().getDataSources();
         if(dataSources != null) {
             List<BindingConfiguration> ret = new ArrayList<BindingConfiguration>(dataSources.size());
@@ -97,9 +98,13 @@ public class DataSourceDefinitionDeploymentDescriptorParser extends AbstractDepl
         final DirectDataSourceInjectionSource directDataSourceInjectionSource = new DirectDataSourceInjectionSource();
         directDataSourceInjectionSource.setClassName(className);
         directDataSourceInjectionSource.setDatabaseName(dataSource.getDatabaseName());
-        directDataSourceInjectionSource.setDescription(dataSource.getDescriptions().toString());
+        if (dataSource.getDescriptions() != null) {
+            directDataSourceInjectionSource.setDescription(dataSource.getDescriptions().toString());
+        }
         directDataSourceInjectionSource.setInitialPoolSize(dataSource.getInitialPoolSize());
-        directDataSourceInjectionSource.setIsolationLevel(dataSource.getIsolationLevel().ordinal());
+        if (dataSource.getIsolationLevel() != null) {
+            directDataSourceInjectionSource.setIsolationLevel(dataSource.getIsolationLevel().ordinal());
+        }
         directDataSourceInjectionSource.setLoginTimeout(dataSource.getLoginTimeout());
         directDataSourceInjectionSource.setMaxIdleTime(dataSource.getMaxIdleTime());
         directDataSourceInjectionSource.setMaxStatements(dataSource.getMaxStatements());

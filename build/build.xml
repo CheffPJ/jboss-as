@@ -24,9 +24,14 @@
 
     <import file="lib.xml"/>
 
-    <property name="output.dir" value="target/jboss-${jboss.as.release.version}"/>
+    <property name="output.dir" value="target/jboss-as-${jboss.as.release.version}"/>
     <target name="copy-files">
         <copy todir="${output.dir}">
+            <fileset dir="src/main/resources">
+                <include name="LICENSE.txt"/>
+                <include name="README.txt"/>
+                <include name="copyright.txt"/>
+            </fileset>
             <fileset dir="src/main/resources">
                 <include name="bin/**"/>
             </fileset>
@@ -966,6 +971,10 @@
 
         <bundle-def name="org.apache.felix.metatype">
             <maven-bundle group="org.apache.felix" artifact="org.apache.felix.metatype"/>
+        </bundle-def>
+
+        <bundle-def name="org.apache.felix.scr">
+            <maven-bundle group="org.apache.felix" artifact="org.apache.felix.scr"/>
         </bundle-def>
 
         <bundle-def name="org.apache.felix.webconsole">

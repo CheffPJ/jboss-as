@@ -30,7 +30,7 @@
     <parent>
         <groupId>org.jboss.as</groupId>
         <artifactId>jboss-as-parent</artifactId>
-        <version>7.0.0.CR2-SNAPSHOT</version>
+        <version>7.1.0.Alpha1-SNAPSHOT</version>
     </parent>
 
     <artifactId>jboss-as-build</artifactId>
@@ -435,6 +435,11 @@
 
         <dependency>
             <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.scr</artifactId>
+        </dependency>
+            
+        <dependency>
+            <groupId>org.apache.felix</groupId>
             <artifactId>org.apache.felix.webconsole</artifactId>
         </dependency>
 
@@ -601,26 +606,32 @@
            <groupId>org.jboss.as</groupId>
            <artifactId>jboss-as-clustering-api</artifactId>
         </dependency>
+
         <dependency>
            <groupId>org.jboss.as</groupId>
            <artifactId>jboss-as-clustering-common</artifactId>
         </dependency>
+
         <dependency>
            <groupId>org.jboss.as</groupId>
            <artifactId>jboss-as-clustering-impl</artifactId>
         </dependency>
+
         <dependency>
            <groupId>org.jboss.as</groupId>
            <artifactId>jboss-as-clustering-infinispan</artifactId>
         </dependency>
+
         <dependency>
            <groupId>org.jboss.as</groupId>
            <artifactId>jboss-as-clustering-jgroups</artifactId>
         </dependency>
+
         <dependency>
            <groupId>org.jboss.as</groupId>
            <artifactId>jboss-as-clustering-web-infinispan</artifactId>
         </dependency>
+
         <dependency>
            <groupId>org.jboss.as</groupId>
            <artifactId>jboss-as-clustering-web-spi</artifactId>
@@ -725,6 +736,11 @@
         <dependency>
             <groupId>org.jboss.as</groupId>
             <artifactId>jboss-as-naming</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.as</groupId>
+            <artifactId>jboss-as-network</artifactId>
         </dependency>
 
         <dependency>
@@ -935,18 +951,6 @@
         <dependency>
             <groupId>org.jboss.ironjacamar</groupId>
             <artifactId>ironjacamar-validator</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.jboss.ironjacamar</groupId>
-            <artifactId>jdbc-local</artifactId>
-            <type>rar</type>
-        </dependency>
-
-        <dependency>
-            <groupId>org.jboss.ironjacamar</groupId>
-            <artifactId>jdbc-xa</artifactId>
-            <type>rar</type>
         </dependency>
 
         <dependency>
@@ -1489,8 +1493,8 @@
                                 </goals>
                                 <phase>package</phase>
                                 <configuration>
-                                    <licensesOutputDirectory>${project.build.directory}/jboss-${jboss.as.release.version}/docs/licenses</licensesOutputDirectory>
-                                    <licensesOutputFile>${project.build.directory}/jboss-${jboss.as.release.version}/docs/licenses/licenses.xml</licensesOutputFile>
+                                    <licensesOutputDirectory>${project.build.directory}/jboss-as-${jboss.as.release.version}/docs/licenses</licensesOutputDirectory>
+                                    <licensesOutputFile>${project.build.directory}/jboss-as-${jboss.as.release.version}/docs/licenses/licenses.xml</licensesOutputFile>
                                 </configuration>
                             </execution>
                         </executions>

@@ -212,6 +212,7 @@
                 <module identifier="org.apache.aries.jmx" startlevel="2"/>
                 <module identifier="org.apache.felix.eventadmin" startlevel="2"/>
                 <module identifier="org.apache.felix.metatype" startlevel="2"/>
+                <module identifier="org.apache.felix.scr" startlevel="2"/>
                 <module identifier="org.apache.felix.webconsole" startlevel="2"/>
                 <module identifier="org.jboss.osgi.jmx" startlevel="2"/>
                 <module identifier="org.jboss.osgi.http" startlevel="2"/>
@@ -228,7 +229,7 @@
             <security-domains>
                 <security-domain name="other" cache-type="default">
                     <authentication>
-                        <login-module code="UsersRoles" flag="required"/>
+                        <login-module code="Disabled" flag="required"/>
                     </authentication>
                 </security-domain>
             </security-domains>
@@ -243,10 +244,11 @@
             </core-environment>
             <coordinator-environment default-timeout="300"/>
         </subsystem>
-        <subsystem xmlns="urn:jboss:domain:web:1.0">
+        <subsystem xmlns="urn:jboss:domain:web:1.0" default-virtual-server="default-host">
             <connector name="http" scheme="http" protocol="HTTP/1.1" socket-binding="http"/>
-            <virtual-server name="localhost" enable-welcome-root="true">
-                <alias name="example.com" />
+            <virtual-server name="default-host" enable-welcome-root="true">
+               <alias name="localhost" />
+               <alias name="example.com" />
             </virtual-server>
         </subsystem>
         <subsystem xmlns="urn:jboss:domain:weld:1.0" />

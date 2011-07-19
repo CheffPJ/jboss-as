@@ -1,33 +1,26 @@
 /*
- * JBoss, Home of Professional Open Source.
- * Copyright 2011, Red Hat, Inc., and individual contributors
- * as indicated by the @author tags. See the copyright.txt file in the
- * distribution for a full listing of individual contributors.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
- */
+* JBoss, Home of Professional Open Source.
+* Copyright 2011, Red Hat, Inc., and individual contributors
+* as indicated by the @author tags. See the copyright.txt file in the
+* distribution for a full listing of individual contributors.
+*
+* This is free software; you can redistribute it and/or modify it
+* under the terms of the GNU Lesser General Public License as
+* published by the Free Software Foundation; either version 2.1 of
+* the License, or (at your option) any later version.
+*
+* This software is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+* Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public
+* License along with this software; if not, write to the Free
+* Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+* 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+*/
 package org.jboss.as.cli;
 
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.CallbackHandler;
-import javax.security.auth.callback.NameCallback;
-import javax.security.auth.callback.PasswordCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
-import javax.security.sasl.RealmCallback;
-import javax.security.sasl.RealmChoiceCallback;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
@@ -45,19 +38,30 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.callback.NameCallback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+import javax.security.sasl.RealmCallback;
+import javax.security.sasl.RealmChoiceCallback;
+
 import org.jboss.as.cli.batch.Batch;
 import org.jboss.as.cli.batch.BatchManager;
 import org.jboss.as.cli.batch.BatchedCommand;
 import org.jboss.as.cli.batch.impl.DefaultBatchManager;
 import org.jboss.as.cli.batch.impl.DefaultBatchedCommand;
+import org.jboss.as.cli.handlers.ClearScreenHandler;
+import org.jboss.as.cli.handlers.CommandCommandHandler;
 import org.jboss.as.cli.handlers.ConnectHandler;
-import org.jboss.as.cli.handlers.PrintWorkingNodeHandler;
 import org.jboss.as.cli.handlers.DeployHandler;
+import org.jboss.as.cli.handlers.GenericTypeOperationHandler;
 import org.jboss.as.cli.handlers.HelpHandler;
 import org.jboss.as.cli.handlers.HistoryHandler;
 import org.jboss.as.cli.handlers.LsHandler;
 import org.jboss.as.cli.handlers.OperationRequestHandler;
 import org.jboss.as.cli.handlers.PrefixHandler;
+import org.jboss.as.cli.handlers.PrintWorkingNodeHandler;
 import org.jboss.as.cli.handlers.QuitHandler;
 import org.jboss.as.cli.handlers.UndeployHandler;
 import org.jboss.as.cli.handlers.VersionHandler;
@@ -101,9 +105,9 @@ import org.jboss.dmr.ModelNode;
 import org.jboss.sasl.JBossSaslProvider;
 
 /**
- *
- * @author Alexey Loubyansky
- */
+*
+* @author Alexey Loubyansky
+*/
 public class CommandLineMain {
 
     private static final CommandRegistry cmdRegistry = new CommandRegistry();
@@ -112,6 +116,7 @@ public class CommandLineMain {
         cmdRegistry.registerHandler(new QuitHandler(), "quit", "q", "exit");
         cmdRegistry.registerHandler(new ConnectHandler(), "connect");
         cmdRegistry.registerHandler(new PrefixHandler(), "cd", "cn");
+        cmdRegistry.registerHandler(new ClearScreenHandler(), "clear", "cls");
         cmdRegistry.registerHandler(new LsHandler(), "ls");
         cmdRegistry.registerHandler(new HistoryHandler(), "history");
         cmdRegistry.registerHandler(new DeployHandler(), "deploy");
@@ -139,166 +144,191 @@ public class CommandLineMain {
 
         cmdRegistry.registerHandler(new VersionHandler(), "version");
 
-        cmdRegistry.registerHandler(new DataSourceAddHandler(), "add-data-source");
-        cmdRegistry.registerHandler(new DataSourceModifyHandler(), "modify-data-source");
-        cmdRegistry.registerHandler(new DataSourceRemoveHandler(), "remove-data-source");
-        //cmdRegistry.registerHandler(new SimpleDataSourceOperationHandler("data-source"), "data-source");
-        cmdRegistry.registerHandler(new XADataSourceAddHandler(), "add-xa-data-source");
-        cmdRegistry.registerHandler(new XADataSourceRemoveHandler(), "remove-xa-data-source");
-        cmdRegistry.registerHandler(new XADataSourceModifyHandler(), "modify-xa-data-source");
+        cmdRegistry.registerHandler(new DataSourceAddHandler(), false, "add-data-source");
+        cmdRegistry.registerHandler(new DataSourceModifyHandler(), false, "modify-data-source");
+        cmdRegistry.registerHandler(new DataSourceRemoveHandler(), false, "remove-data-source");
+        cmdRegistry.registerHandler(new XADataSourceAddHandler(), false, "add-xa-data-source");
+        cmdRegistry.registerHandler(new XADataSourceRemoveHandler(), false, "remove-xa-data-source");
+        cmdRegistry.registerHandler(new XADataSourceModifyHandler(), false, "modify-xa-data-source");
+
+        cmdRegistry.registerHandler(new CommandCommandHandler(cmdRegistry), "command");
+
+        // data-source
+        cmdRegistry.registerHandler(new GenericTypeOperationHandler("/subsystem=datasources/data-source", "jndi-name"), "data-source");
+        cmdRegistry.registerHandler(new GenericTypeOperationHandler("/subsystem=datasources/xa-data-source", "jndi-name"), "xa-data-source");
     }
 
     public static void main(String[] args) throws Exception {
-        Security.addProvider(new JBossSaslProvider());
+        try {
+            Security.addProvider(new JBossSaslProvider());
 
-        String argError = null;
-        String[] commands = null;
-        File file = null;
-        boolean connect = false;
-        String defaultControllerHost = null;
-        int defaultControllerPort = -1;
-        boolean version = false;
-        for(String arg : args) {
-            if(arg.startsWith("controller=") || arg.startsWith("--controller=")) {
-                final String value;
-                if(arg.startsWith("--")) {
-                    value = arg.substring(13);
-                } else {
-                    value = arg.substring(11);
-                }
-                String portStr = null;
-                int colonIndex = value.indexOf(':');
-                if(colonIndex < 0) {
-                    // default port
-                    defaultControllerHost = value;
-                } else if(colonIndex == 0) {
-                    // default host
-                    portStr = value.substring(1);
-                } else {
-                    defaultControllerHost = value.substring(0, colonIndex);
-                    portStr = value.substring(colonIndex + 1);
-                }
-
-                if(portStr != null) {
-                    int port = -1;
-                    try {
-                        port = Integer.parseInt(portStr);
-                        if(port < 0) {
-                            argError = "The port must be a valid non-negative integer: '" + args + "'";
-                        } else {
-                            defaultControllerPort = port;
-                        }
-                    } catch(NumberFormatException e) {
-                        argError = "The port must be a valid non-negative integer: '" + arg + "'";
+            String argError = null;
+            String[] commands = null;
+            File file = null;
+            boolean connect = false;
+            String defaultControllerHost = null;
+            int defaultControllerPort = -1;
+            boolean version = false;
+            for(String arg : args) {
+                if(arg.startsWith("--controller=") || arg.startsWith("controller=")) {
+                    final String value;
+                    if(arg.startsWith("--")) {
+                        value = arg.substring(13);
+                    } else {
+                        value = arg.substring(11);
                     }
-                }
-            } else if("--connect".equals(arg) || "-c".equals(arg)) {
-                connect = true;
-            } else if("--version".equals(arg)) {
-                version = true;
-            } else if(arg.startsWith("file=") || arg.startsWith("--file=")) {
-                if(file != null) {
-                    argError = "Duplicate argument 'file'.";
-                    break;
-                }
-                if(commands != null) {
-                    argError = "Only one of 'file', 'commands' or 'command' can appear as the argument at a time.";
-                    break;
-                }
+                    String portStr = null;
+                    int colonIndex = value.indexOf(':');
+                    if(colonIndex < 0) {
+                        // default port
+                        defaultControllerHost = value;
+                    } else if(colonIndex == 0) {
+                        // default host
+                        portStr = value.substring(1);
+                    } else {
+                        defaultControllerHost = value.substring(0, colonIndex);
+                        portStr = value.substring(colonIndex + 1);
+                    }
 
-                final String fileName = arg.startsWith("--") ? arg.substring(7) : arg.substring(5);
-                if(!fileName.isEmpty()) {
-                    file = new File(fileName);
-                    if(!file.exists()) {
-                        argError = "File " + file.getAbsolutePath() + " doesn't exist.";
+                    if(portStr != null) {
+                        int port = -1;
+                        try {
+                            port = Integer.parseInt(portStr);
+                            if(port < 0) {
+                                argError = "The port must be a valid non-negative integer: '" + args + "'";
+                            } else {
+                                defaultControllerPort = port;
+                            }
+                        } catch(NumberFormatException e) {
+                            argError = "The port must be a valid non-negative integer: '" + arg + "'";
+                        }
+                    }
+                } else if("--connect".equals(arg) || "-c".equals(arg)) {
+                    connect = true;
+                } else if("--version".equals(arg)) {
+                    version = true;
+                } else if(arg.startsWith("--file=") || arg.startsWith("file=")) {
+                    if(file != null) {
+                        argError = "Duplicate argument '--file'.";
                         break;
                     }
-                } else {
-                    argError = "Argument 'file' is missing value.";
-                    break;
+                    if(commands != null) {
+                        argError = "Only one of '--file', '--commands' or '--command' can appear as the argument at a time.";
+                        break;
+                    }
+
+                    final String fileName = arg.startsWith("--") ? arg.substring(7) : arg.substring(5);
+                    if(!fileName.isEmpty()) {
+                        file = new File(fileName);
+                        if(!file.exists()) {
+                            argError = "File " + file.getAbsolutePath() + " doesn't exist.";
+                            break;
+                        }
+                    } else {
+                        argError = "Argument '--file' is missing value.";
+                        break;
+                    }
+                } else if(arg.startsWith("--commands=") || arg.startsWith("commands=")) {
+                    if(file != null) {
+                        argError = "Only one of '--file', '--commands' or '--command' can appear as the argument at a time.";
+                        break;
+                    }
+                    if(commands != null) {
+                        argError = "Duplicate argument '--command'/'--commands'.";
+                        break;
+                    }
+                    final String value = arg.startsWith("--") ? arg.substring(11) : arg.substring(9);
+                    commands = value.split(",+");
+                } else if(arg.startsWith("--command=") || arg.startsWith("command=")) {
+                    if(file != null) {
+                        argError = "Only one of '--file', '--commands' or '--command' can appear as the argument at a time.";
+                        break;
+                    }
+                    if(commands != null) {
+                        argError = "Duplicate argument '--command'/'--commands'.";
+                        break;
+                    }
+                    final String value = arg.startsWith("--") ? arg.substring(10) : arg.substring(8);
+                    commands = new String[]{value};
                 }
-            } else if(arg.startsWith("commands=") || arg.startsWith("--commands=")) {
-                if(file != null) {
-                    argError = "Only one of 'file', 'commands' or 'command' can appear as the argument at a time.";
-                    break;
+                else {
+                    // assume it's commands
+                    if(file != null) {
+                        argError = "Only one of '--file', '--commands' or '--command' can appear as the argument at a time.";
+                        break;
+                    }
+                    if(commands != null) {
+                        argError = "Duplicate argument '--command'/'--commands'.";
+                        break;
+                    }
+                    commands = arg.split(",+");
                 }
-                if(commands != null) {
-                    argError = "Duplicate argument 'command'/'commands'.";
-                    break;
-                }
-                final String value = arg.startsWith("--") ? arg.substring(11) : arg.substring(9);
-                commands = value.split(",+");
-            } else if(arg.startsWith("command=") || arg.startsWith("--command=")) {
-                if(file != null) {
-                    argError = "Only one of 'file', 'commands' or 'command' can appear as the argument at a time.";
-                    break;
-                }
-                if(commands != null) {
-                    argError = "Duplicate argument 'command'/'commands'.";
-                    break;
-                }
-                final String value = arg.startsWith("--") ? arg.substring(10) : arg.substring(8);
-                commands = new String[]{value};
             }
-        }
 
-        if(argError != null) {
-            System.err.println(argError);
-            return;
-        }
+            if(argError != null) {
+                System.err.println(argError);
+                return;
+            }
 
-        if(version) {
-            final CommandContextImpl cmdCtx = new CommandContextImpl();
-            VersionHandler.INSTANCE.handle(cmdCtx);
-            return;
-        }
+            if(version) {
+                final CommandContextImpl cmdCtx = new CommandContextImpl();
+                VersionHandler.INSTANCE.handle(cmdCtx);
+                return;
+            }
 
-        if(file != null) {
-            processFile(file, defaultControllerHost, defaultControllerPort, connect);
-            return;
-        }
+            if(file != null) {
+                processFile(file, defaultControllerHost, defaultControllerPort, connect);
+                return;
+            }
 
-        if(commands != null) {
-            processCommands(commands, defaultControllerHost, defaultControllerPort, connect);
-            return;
-        }
+            if(commands != null) {
+                processCommands(commands, defaultControllerHost, defaultControllerPort, connect);
+                return;
+            }
 
-        // Interactive mode
+            // Interactive mode
 
-        final jline.ConsoleReader console = initConsoleReader();
-        final CommandContextImpl cmdCtx = new CommandContextImpl(console);
-        SecurityActions.addShutdownHook(new Thread(new Runnable() {
-            @Override
-            public void run() {
+            final jline.ConsoleReader console = initConsoleReader();
+            final CommandContextImpl cmdCtx = new CommandContextImpl(console);
+            SecurityActions.addShutdownHook(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    cmdCtx.disconnectController();
+                }
+            }));
+            console.addCompletor(cmdCtx.cmdCompleter);
+
+            if(defaultControllerHost != null) {
+                cmdCtx.defaultControllerHost = defaultControllerHost;
+            }
+            if(defaultControllerPort != -1) {
+                cmdCtx.defaultControllerPort = defaultControllerPort;
+            }
+
+            if(connect) {
+                cmdCtx.connectController(null, -1);
+            } else {
+                cmdCtx.printLine("You are disconnected at the moment." +
+                    " Type 'connect' to connect to the server or" +
+                    " 'help' for the list of supported commands.");
+            }
+
+            try {
+                while (!cmdCtx.terminate) {
+                    final String line = console.readLine(cmdCtx.getPrompt());
+                    if(line == null) {
+                        cmdCtx.terminateSession();
+                    } else {
+                        processLine(cmdCtx, line.trim());
+                    }
+                }
+            } finally {
                 cmdCtx.disconnectController();
             }
-        }));
-        console.addCompletor(cmdCtx.cmdCompleter);
-
-        if(defaultControllerHost != null) {
-            cmdCtx.defaultControllerHost = defaultControllerHost;
-        }
-        if(defaultControllerPort != -1) {
-            cmdCtx.defaultControllerPort = defaultControllerPort;
-        }
-
-        if(connect) {
-            cmdCtx.connectController(null, -1);
-        } else {
-            cmdCtx.printLine("You are disconnected at the moment." +
-                " Type 'connect' to connect to the server or" +
-                " 'help' for the list of supported commands.");
-        }
-
-        try {
-            while (!cmdCtx.terminate) {
-                String line = console.readLine(cmdCtx.getPrompt());
-                line = line != null ? line.trim() : "";
-                processLine(cmdCtx, line);
-            }
         } finally {
-            cmdCtx.disconnectController();
+            System.exit(0);
         }
+        System.exit(0);
     }
 
     private static void processCommands(String[] commands, String defaultControllerHost, int defaultControllerPort, final boolean connect) {
@@ -534,8 +564,8 @@ public class CommandLineMain {
         private final CommandCompleter cmdCompleter;
 
         /**
-         * Non-interactive mode
-         */
+* Non-interactive mode
+*/
         private CommandContextImpl() {
             this.console = null;
             this.history = null;
@@ -545,8 +575,8 @@ public class CommandLineMain {
         }
 
         /**
-         * Interactive mode
-         */
+* Interactive mode
+*/
         private CommandContextImpl(jline.ConsoleReader console) {
             this.console = console;
 
@@ -658,15 +688,16 @@ public class CommandLineMain {
                     disconnectController();
                 }
 
+                client = newClient;
+                this.controllerHost = host;
+                this.controllerPort = port;
+
                 List<String> nodeTypes = Util.getNodeTypes(newClient, new DefaultOperationRequestAddress());
                 if (!nodeTypes.isEmpty()) {
                     domainMode = nodeTypes.contains("server-group");
                     printLine("Connected to "
                             + (domainMode ? "domain controller at " : "standalone controller at ")
                             + host + ":" + port);
-                    client = newClient;
-                    this.controllerHost = host;
-                    this.controllerPort = port;
                 } else {
                     printLine("The controller is not available at " + host + ":" + port);
                 }
@@ -707,6 +738,16 @@ public class CommandLineMain {
         @Override
         public int getControllerPort() {
             return controllerPort;
+        }
+
+        @Override
+        public void clearScreen() {
+            try {
+                console.setDefaultPrompt("");// it has to be reset apparently because otherwise it'll be printed twice
+                console.clearScreen();
+            } catch (IOException e) {
+                printLine(e.getLocalizedMessage());
+            }
         }
 
         String promptConnectPart;

@@ -371,6 +371,10 @@ public class InfinispanExtension implements Extension, XMLElementReader<List<Mod
                     cache.get(ModelKeys.OWNERS).set(Integer.parseInt(value));
                     break;
                 }
+                case VIRTUAL_NODES: {
+                    cache.get(ModelKeys.VIRTUAL_NODES).set(Integer.parseInt(value));
+                    break;
+                }
                 case L1_LIFESPAN: {
                     cache.get(ModelKeys.L1_LIFESPAN).set(Long.parseLong(value));
                     break;
@@ -786,6 +790,7 @@ public class InfinispanExtension implements Extension, XMLElementReader<List<Mod
                     this.writeOptional(writer, Attribute.SITE, transport, ModelKeys.SITE);
                     this.writeOptional(writer, Attribute.RACK, transport, ModelKeys.RACK);
                     this.writeOptional(writer, Attribute.MACHINE, transport, ModelKeys.MACHINE);
+                    writer.writeEndElement();
                 }
 
                 for (ModelNode cache: container.get(ModelKeys.CACHE).asList()) {
@@ -794,6 +799,7 @@ public class InfinispanExtension implements Extension, XMLElementReader<List<Mod
                         if (mode.isDistributed()) {
                             writer.writeStartElement(Element.DISTRIBUTED_CACHE.getLocalName());
                             this.writeOptional(writer, Attribute.OWNERS, cache, ModelKeys.OWNERS);
+                            this.writeOptional(writer, Attribute.VIRTUAL_NODES, cache, ModelKeys.VIRTUAL_NODES);
                             this.writeOptional(writer, Attribute.L1_LIFESPAN, cache, ModelKeys.L1_LIFESPAN);
                         } else if (mode.isInvalidation()) {
                             writer.writeStartElement(Element.INVALIDATION_CACHE.getLocalName());

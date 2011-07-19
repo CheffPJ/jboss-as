@@ -80,7 +80,7 @@ public class JmsQueueRemoveHandler extends BatchModeCommandHandler {
                         }
                     }
 
-                return Util.getJmsResources(ctx.getModelControllerClient(), profileArg, "queue");
+                return Util.getJmsResources(ctx.getModelControllerClient(), profileArg, "jms-queue");
                 }
             }), 0, "--name") {
             @Override
@@ -91,6 +91,8 @@ public class JmsQueueRemoveHandler extends BatchModeCommandHandler {
                 return super.canAppearNext(ctx);
             }
         };
+
+        this.addRequiredPath("/subsystem=messaging");
     }
 
     @Override

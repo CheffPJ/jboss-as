@@ -24,6 +24,8 @@ package org.jboss.as.weld.deployment.processors;
 import org.jboss.as.ee.beanvalidation.BeanValidationAttachments;
 import org.jboss.as.ee.component.EEApplicationDescription;
 import org.jboss.as.ee.component.EEModuleDescription;
+import org.jboss.as.security.service.SimpleSecurityManager;
+import org.jboss.as.security.service.SimpleSecurityManagerService;
 import org.jboss.as.server.deployment.Attachments;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnit;
@@ -144,6 +146,11 @@ public class WeldDeploymentProcessor implements DeploymentUnitProcessor {
             beanDeploymentArchives.addAll(bdm.getBeanDeploymentArchives());
             bdmsByIdentifier.put(subDeploymentModule.getIdentifier(), bdm);
             moduleSpecByIdentifier.put(subDeploymentModule.getIdentifier(), subDeploymentModuleSpec);
+
+            //we have to do this here as the aggregate components are not available in earlier phases
+            final ResourceRoot subDeploymentRoot = subDeployment.getAttachment(Attachments.DEPLOYMENT_ROOT);
+            final EjbInjectionServices ejbInjectionServices = new WeldEjbInjectionServices(deploymentUnit.getServiceRegistry(), eeModuleDescription, eeApplicationDescription, subDeploymentRoot.getRoot());
+            bdm.addService(EjbInjectionServices.class, ejbInjectionServices);
         }
 
         for (Map.Entry<ModuleIdentifier, BeanDeploymentModule> entry : bdmsByIdentifier.entrySet()) {
@@ -172,6 +179,7 @@ public class WeldDeploymentProcessor implements DeploymentUnitProcessor {
 
         final EjbInjectionServices ejbInjectionServices = new WeldEjbInjectionServices(deploymentUnit.getServiceRegistry(), eeModuleDescription, eeApplicationDescription, deploymentRoot.getRoot());
         weldContainer.addWeldService(EjbInjectionServices.class, ejbInjectionServices);
+        rootBeanDeploymentModule.addService(EjbInjectionServices.class, ejbInjectionServices);
 
         weldContainer.addWeldService(EjbServices.class, new WeldEjbServices(deploymentUnit.getServiceRegistry()));
 
@@ -200,7 +208,8 @@ public class WeldDeploymentProcessor implements DeploymentUnitProcessor {
 
         final ServiceName serviceName = deploymentUnit.getServiceName().append(WeldSecurityServices.SERVICE_NAME);
 
-        serviceTarget.addService(serviceName, service).install();
+        serviceTarget.addService(serviceName, service)
+                .addDependency(ServiceBuilder.DependencyType.OPTIONAL, SimpleSecurityManagerService.SERVICE_NAME, SimpleSecurityManager.class, service.getSecurityManagerValue()).install();
 
         weldServiceBuilder.addDependency(serviceName, WeldSecurityServices.class, weldService.getSecurityServices());
 
