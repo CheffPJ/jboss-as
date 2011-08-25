@@ -2,7 +2,7 @@ JBoss AS7 on Linux Kickstarts
 ============================
 
 Using lightining-lovelock-ks.cfg w/ KVM
----------------------------------------
+---
 
 * root password: JRHoss
 * these assume internet access is available
