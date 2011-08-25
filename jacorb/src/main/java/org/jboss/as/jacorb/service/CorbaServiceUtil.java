@@ -22,12 +22,11 @@
 
 package org.jboss.as.jacorb.service;
 
-import org.jboss.as.naming.NamingStore;
+import org.jboss.as.naming.ServiceBasedNamingStore;
 import org.jboss.as.naming.ValueManagedReferenceFactory;
 import org.jboss.as.naming.deployment.ContextNames;
 import org.jboss.as.naming.service.BinderService;
 import org.jboss.msc.service.ServiceController;
-import org.jboss.msc.service.ServiceName;
 import org.jboss.msc.service.ServiceTarget;
 import org.jboss.msc.value.Values;
 
@@ -39,8 +38,6 @@ import org.jboss.msc.value.Values;
  * @author <a href="mailto:sguilhen@redhat.com">Stefan Guilhen</a>
  */
 public class CorbaServiceUtil {
-
-    public static final ServiceName JBOSS_CONTEXT_SERVICE_NAME = ContextNames.JAVA_CONTEXT_SERVICE_NAME.append("jboss");
 
     /**
      * <p>
@@ -62,8 +59,8 @@ public class CorbaServiceUtil {
      */
     public static void bindObject(final ServiceTarget target, final String contextName, final Object value) {
         final BinderService binderService = new BinderService(contextName);
-        target.addService(JBOSS_CONTEXT_SERVICE_NAME.append(contextName), binderService)
-                .addDependency(JBOSS_CONTEXT_SERVICE_NAME, NamingStore.class, binderService.getNamingStoreInjector())
+        target.addService(ContextNames.buildServiceName(ContextNames.JBOSS_CONTEXT_SERVICE_NAME, contextName), binderService)
+                .addDependency(ContextNames.JBOSS_CONTEXT_SERVICE_NAME, ServiceBasedNamingStore.class, binderService.getNamingStoreInjector())
                 .addInjection(binderService.getManagedObjectInjector(), new ValueManagedReferenceFactory(
                         Values.immediateValue(value)))
                 .setInitialMode(ServiceController.Mode.ACTIVE)

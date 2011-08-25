@@ -22,30 +22,38 @@
 package org.jboss.as.ejb3.component.messagedriven;
 
 
+import org.jboss.as.ee.component.Component;
 import org.jboss.as.ee.component.ComponentConfiguration;
 import org.jboss.as.ee.component.ComponentConfigurator;
 import org.jboss.as.ee.component.ComponentDescription;
+import org.jboss.as.ee.component.DependencyConfigurator;
 import org.jboss.as.ee.component.EEApplicationDescription;
 import org.jboss.as.ee.component.ViewConfiguration;
 import org.jboss.as.ee.component.ViewConfigurator;
 import org.jboss.as.ee.component.ViewDescription;
 import org.jboss.as.ee.component.interceptors.InterceptorOrder;
 import org.jboss.as.ejb3.component.EJBComponentDescription;
-import org.jboss.as.ejb3.component.EJBViewDescription;
 import org.jboss.as.ejb3.component.MethodIntf;
-import org.jboss.as.ejb3.component.pool.PooledInstanceInterceptor;
+import org.jboss.as.ejb3.component.pool.PoolConfig;
+import org.jboss.as.ejb3.component.pool.PoolConfigService;
 import org.jboss.as.ejb3.deployment.EjbJarDescription;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
+import org.jboss.metadata.ejb.spec.MessageDrivenBeanMetaData;
+import org.jboss.msc.service.Service;
 import org.jboss.msc.service.ServiceBuilder;
 import org.jboss.msc.service.ServiceName;
+
+import java.util.Properties;
 
 /**
  * @author <a href="mailto:cdewolf@redhat.com">Carlo de Wolf</a>
  */
 public class MessageDrivenComponentDescription extends EJBComponentDescription {
-    private String messageListenerInterfaceName;
+    private final Properties activationProps;
     private String resourceAdapterName;
+
+    private String mdbPoolConfigName;
 
     /**
      * Construct a new instance.
@@ -55,8 +63,15 @@ public class MessageDrivenComponentDescription extends EJBComponentDescription {
      * @param ejbJarDescription  the module description
      */
     public MessageDrivenComponentDescription(final String componentName, final String componentClassName, final EjbJarDescription ejbJarDescription,
-                                             final ServiceName deploymentUnitServiceName) {
+                                             final ServiceName deploymentUnitServiceName, final String messageListenerInterfaceName, final Properties activationProps) {
         super(componentName, componentClassName, ejbJarDescription, deploymentUnitServiceName);
+        if (messageListenerInterfaceName == null || messageListenerInterfaceName.isEmpty())
+            throw new IllegalArgumentException("Cannot set null or empty string as message listener interface");
+
+        this.activationProps = activationProps;
+
+        registerView(messageListenerInterfaceName, MethodIntf.MESSAGE_ENDPOINT);
+
     }
 
     @Override
@@ -64,41 +79,23 @@ public class MessageDrivenComponentDescription extends EJBComponentDescription {
         final ComponentConfiguration mdbComponentConfiguration = new ComponentConfiguration(this, applicationDescription.getClassConfiguration(getComponentClassName()));
         // setup the component create service
         mdbComponentConfiguration.setComponentCreateServiceFactory(new MessageDrivenComponentCreateServiceFactory());
+
+        // setup the configurator to inject the PoolConfig in the MessageDrivenComponentCreateService
+        final MessageDrivenComponentDescription mdbComponentDescription = (MessageDrivenComponentDescription) mdbComponentConfiguration.getComponentDescription();
+        mdbComponentConfiguration.getCreateDependencies().add(new PoolInjectingConfigurator(mdbComponentDescription));
+
+        // setup the configurator to inject default ra name
+        mdbComponentConfiguration.getCreateDependencies().add(new DefaultRANameInjectingConfigurator(mdbComponentDescription));
         return mdbComponentConfiguration;
     }
 
-    String getMessageListenerInterfaceName() {
-        return messageListenerInterfaceName;
+
+    public Properties getActivationProps() {
+        return activationProps;
     }
 
-    String getResourceAdapterName() {
+    public String getResourceAdapterName() {
         return resourceAdapterName;
-    }
-
-//    @Override
-//    protected void prepareComponentConfiguration(ComponentConfiguration configuration, DeploymentPhaseContext phaseContext) throws DeploymentUnitProcessingException {
-//        super.prepareComponentConfiguration(configuration, phaseContext);
-//
-//        final MessageDrivenComponentConfiguration messageDrivenComponentConfiguration = (MessageDrivenComponentConfiguration) configuration;
-//        final DeploymentUnit deploymentUnit = phaseContext.getDeploymentUnit();
-//        final Module module = deploymentUnit.getAttachment(org.jboss.as.server.deployment.Attachments.MODULE);
-//        final ClassLoader classLoader = module.getClassLoader();
-//
-//        try {
-//            messageDrivenComponentConfiguration.setMessageListenerInterface(classLoader.loadClass(getMessageListenerInterfaceName()));
-//        } catch (ClassNotFoundException e) {
-//            throw new DeploymentUnitProcessingException("Failed to load message listener interface " + getMessageListenerInterfaceName());
-//        }
-//    }
-
-    public void setMessageListenerInterfaceName(String messageListenerInterfaceName) {
-        if (messageListenerInterfaceName == null || messageListenerInterfaceName.isEmpty()) {
-            throw new IllegalArgumentException("Cannot set null or empty string as message listener interface");
-        }
-        this.messageListenerInterfaceName = messageListenerInterfaceName;
-        // add it to the view description
-        ViewDescription viewDescription = new EJBViewDescription(this, messageListenerInterfaceName, MethodIntf.MESSAGE_ENDPOINT);
-        this.getViews().add(viewDescription);
     }
 
     public void setResourceAdapterName(String resourceAdapterName) {
@@ -106,15 +103,6 @@ public class MessageDrivenComponentDescription extends EJBComponentDescription {
             throw new IllegalArgumentException("Resource adapter name cannot be null or empty");
         }
         this.resourceAdapterName = resourceAdapterName;
-        // setup the dependency
-        String raDeploymentName = resourceAdapterName;
-        // See RaDeploymentParsingProcessor
-        if (this.resourceAdapterName.endsWith(".rar")) {
-            raDeploymentName = this.resourceAdapterName.substring(0, resourceAdapterName.indexOf(".rar"));
-        }
-        // See ResourceAdapterDeploymentService
-        ServiceName raServiceName = ServiceName.of(raDeploymentName);
-        this.addDependency(raServiceName, ServiceBuilder.DependencyType.REQUIRED);
     }
 
     @Override
@@ -126,7 +114,7 @@ public class MessageDrivenComponentDescription extends EJBComponentDescription {
         view.getConfigurators().add(new ViewConfigurator() {
             @Override
             public void configure(DeploymentPhaseContext context, ComponentConfiguration componentConfiguration, ViewDescription description, ViewConfiguration configuration) throws DeploymentUnitProcessingException {
-                configuration.addViewInterceptor(PooledInstanceInterceptor.pooled(), InterceptorOrder.View.ASSOCIATING_INTERCEPTOR);
+                configuration.addViewInterceptor(MessageDrivenComponentInstanceAssociatingFactory.instance(), InterceptorOrder.View.ASSOCIATING_INTERCEPTOR);
             }
         });
 
@@ -157,5 +145,59 @@ public class MessageDrivenComponentDescription extends EJBComponentDescription {
     @Override
     public boolean isMessageDriven() {
         return true;
+    }
+
+    public void setPoolConfigName(final String mdbPoolConfigName) {
+        this.mdbPoolConfigName = mdbPoolConfigName;
+    }
+
+    public String getPoolConfigName() {
+        return this.mdbPoolConfigName;
+    }
+
+    private class PoolInjectingConfigurator implements DependencyConfigurator<Service<Component>> {
+
+        private final MessageDrivenComponentDescription mdbComponentDescription;
+
+        PoolInjectingConfigurator(final MessageDrivenComponentDescription mdbComponentDescription) {
+            this.mdbComponentDescription = mdbComponentDescription;
+        }
+
+        @Override
+        public void configureDependency(ServiceBuilder<?> serviceBuilder, Service<Component> service) throws DeploymentUnitProcessingException {
+            final MessageDrivenComponentCreateService mdbComponentCreateService = (MessageDrivenComponentCreateService) service;
+            final String poolName = this.mdbComponentDescription.getPoolConfigName();
+            // if no pool name has been explicitly set, then inject the optional "default mdb pool config"
+            if (poolName == null) {
+                serviceBuilder.addDependency(ServiceBuilder.DependencyType.OPTIONAL, PoolConfigService.DEFAULT_MDB_POOL_CONFIG_SERVICE_NAME,
+                        PoolConfig.class, mdbComponentCreateService.getPoolConfigInjector());
+            } else {
+                // pool name has been explicitly set so the pool config is a required dependency
+                serviceBuilder.addDependency(PoolConfigService.EJB_POOL_CONFIG_BASE_SERVICE_NAME.append(poolName),
+                        PoolConfig.class, mdbComponentCreateService.getPoolConfigInjector());
+            }
+        }
+    }
+
+    private class DefaultRANameInjectingConfigurator implements DependencyConfigurator<Service<Component>> {
+
+        private final MessageDrivenComponentDescription mdbComponentDescription;
+
+        DefaultRANameInjectingConfigurator(final MessageDrivenComponentDescription mdbComponentDescription) {
+            this.mdbComponentDescription = mdbComponentDescription;
+        }
+
+        @Override
+        public void configureDependency(ServiceBuilder<?> serviceBuilder, Service<Component> service) throws DeploymentUnitProcessingException {
+            final MessageDrivenComponentCreateService mdbComponentCreateService = (MessageDrivenComponentCreateService) service;
+            serviceBuilder.addDependency(ServiceBuilder.DependencyType.OPTIONAL, DefaultResourceAdapterService.DEFAULT_RA_NAME_SERVICE_NAME,
+                    DefaultResourceAdapterService.class, mdbComponentCreateService.getDefaultRANameServiceInjector());
+        }
+    }
+
+
+    @Override
+    public MessageDrivenBeanMetaData getDescriptorData() {
+        return (MessageDrivenBeanMetaData) super.getDescriptorData();
     }
 }

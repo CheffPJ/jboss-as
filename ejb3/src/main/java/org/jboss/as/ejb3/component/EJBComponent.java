@@ -22,23 +22,22 @@
 package org.jboss.as.ejb3.component;
 
 import org.jboss.as.ee.component.BasicComponent;
+import org.jboss.as.ee.component.ComponentView;
+import org.jboss.as.ee.component.ComponentViewInstance;
 import org.jboss.as.ejb3.security.EJBSecurityMetaData;
 import org.jboss.as.naming.context.NamespaceContextSelector;
 import org.jboss.as.security.service.SimpleSecurityManager;
-import org.jboss.as.server.deployment.DeploymentUnit;
+import org.jboss.as.server.CurrentServiceContainer;
 import org.jboss.ejb3.context.CurrentInvocationContext;
 import org.jboss.ejb3.context.spi.InvocationContext;
-import org.jboss.ejb3.tx2.spi.TransactionalComponent;
+import org.jboss.invocation.proxy.MethodIdentifier;
 import org.jboss.logging.Logger;
 import org.jboss.msc.service.ServiceController;
+import org.jboss.msc.service.ServiceName;
 
 import javax.ejb.ApplicationException;
-import javax.ejb.EJBException;
 import javax.ejb.EJBHome;
 import javax.ejb.EJBLocalHome;
-import javax.ejb.ScheduleExpression;
-import javax.ejb.Timer;
-import javax.ejb.TimerConfig;
 import javax.ejb.TimerService;
 import javax.ejb.TransactionAttributeType;
 import javax.ejb.TransactionManagementType;
@@ -50,28 +49,44 @@ import javax.transaction.SystemException;
 import javax.transaction.TransactionManager;
 import javax.transaction.TransactionSynchronizationRegistry;
 import javax.transaction.UserTransaction;
-import java.io.Serializable;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.security.Principal;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author <a href="mailto:cdewolf@redhat.com">Carlo de Wolf</a>
  */
-public abstract class EJBComponent extends BasicComponent implements org.jboss.ejb3.context.spi.EJBComponent, TransactionalComponent {
+public abstract class EJBComponent extends BasicComponent implements org.jboss.ejb3.context.spi.EJBComponent {
     private static Logger log = Logger.getLogger(EJBComponent.class);
 
-    private final ConcurrentMap<MethodIntf, ConcurrentMap<String, ConcurrentMap<ArrayKey, TransactionAttributeType>>> txAttrs;
+    private static final ApplicationException APPLICATION_EXCEPTION = new ApplicationException() {
+        @Override
+        public boolean inherited() {
+            return true;
+        }
+
+        @Override
+        public boolean rollback() {
+            return false;
+        }
+
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return ApplicationException.class;
+        }
+    };
+
+    private final Map<MethodTransactionAttributeKey, TransactionAttributeType> txAttrs;
 
     private final EJBUtilities utilities;
     private final boolean isBeanManagedTransaction;
     private static volatile boolean youHaveBeenWarnedEJBTHREE2120 = false;
     private final Map<Class<?>, ApplicationException> applicationExceptions;
     private final EJBSecurityMetaData securityMetaData;
+    private final Map<String, ServiceName> viewServices;
+    private final TimerService timerService;
 
     /**
      * Construct a new instance.
@@ -84,21 +99,36 @@ public abstract class EJBComponent extends BasicComponent implements org.jboss.e
 
         this.applicationExceptions = Collections.unmodifiableMap(ejbComponentCreateService.getEjbJarConfiguration().getApplicationExceptions());
 
-        // constructs
-        final DeploymentUnit deploymentUnit = ejbComponentCreateService.getDeploymentUnitInjector().getValue();
-        final ServiceController<EJBUtilities> serviceController = (ServiceController<EJBUtilities>) deploymentUnit.getServiceRegistry().getRequiredService(EJBUtilities.SERVICE_NAME);
-        this.utilities = serviceController.getValue();
+        this.utilities = ejbComponentCreateService.getEJBUtilities();
 
-
-        txAttrs = ejbComponentCreateService.getTxAttrs();
+        final Map<MethodTransactionAttributeKey, TransactionAttributeType> txAttrs = ejbComponentCreateService.getTxAttrs();
+        if(txAttrs == null || txAttrs.isEmpty()) {
+            this.txAttrs = Collections.emptyMap();
+        } else {
+            this.txAttrs = txAttrs;
+        }
         isBeanManagedTransaction = TransactionManagementType.BEAN.equals(ejbComponentCreateService.getTransactionManagementType());
 
         // security metadata
         this.securityMetaData = ejbComponentCreateService.getSecurityMetaData();
+        this.viewServices = ejbComponentCreateService.getViewServices();
+        this.timerService = ejbComponentCreateService.getTimerService();
     }
 
-    @Override
-    public ApplicationException getApplicationException(Class<?> exceptionClass) {
+    protected <T> T createViewInstanceProxy(final Class<T> viewInterface, final Map<Object, Object> contextData) {
+        if (viewInterface == null)
+            throw new IllegalArgumentException("View interface is null");
+        if (viewServices.containsKey(viewInterface.getName())) {
+            final ServiceController<?> serviceController = CurrentServiceContainer.getServiceContainer().getRequiredService(viewServices.get(viewInterface.getName()));
+            final ComponentView view = (ComponentView) serviceController.getValue();
+            final ComponentViewInstance instance = view.createInstance(contextData);
+            return viewInterface.cast(instance.createProxy());
+        } else {
+            throw new IllegalStateException("View of type " + viewInterface + " not found on bean " + this);
+        }
+    }
+
+    public ApplicationException getApplicationException(Class<?> exceptionClass, Method invokedMethod) {
         ApplicationException applicationException = this.applicationExceptions.get(exceptionClass);
         if (applicationException != null) {
             return applicationException;
@@ -121,6 +151,18 @@ public abstract class EJBComponent extends BasicComponent implements org.jboss.e
             }
             // move to next super class
             superClass = superClass.getSuperclass();
+        }
+        // AS7-1317: examine the throws clause of the method
+        // An unchecked-exception is only an application exception if annotated (or described) as such.
+        // (see EJB 3.1 FR 14.2.1)
+        if (RuntimeException.class.isAssignableFrom(exceptionClass) || Error.class.isAssignableFrom(exceptionClass))
+            return null;
+        if (invokedMethod != null) {
+            final Class<?>[] exceptionTypes = invokedMethod.getExceptionTypes();
+            for (Class<?> type : exceptionTypes) {
+                if (type.isAssignableFrom(exceptionClass))
+                    return APPLICATION_EXCEPTION;
+            }
         }
         // not an application exception, so return null.
         return null;
@@ -196,33 +238,21 @@ public abstract class EJBComponent extends BasicComponent implements org.jboss.e
 
     @Override
     public TimerService getTimerService() throws IllegalStateException {
-        // TODO: Temporary, till we have a working timerservice integrated
-        return new NonFunctionalTimerService();
+        return timerService;
     }
 
     @Deprecated
     public TransactionAttributeType getTransactionAttributeType(Method method) {
-        if (!youHaveBeenWarnedEJBTHREE2120) {
-            log.warn("EJBTHREE-2120: deprecated getTransactionAttributeType method called (dev problem)");
-            youHaveBeenWarnedEJBTHREE2120 = true;
-        }
         return getTransactionAttributeType(MethodIntf.BEAN, method);
     }
 
     public TransactionAttributeType getTransactionAttributeType(MethodIntf methodIntf, Method method) {
-        ConcurrentMap<String, ConcurrentMap<ArrayKey, TransactionAttributeType>> perMethodIntf = txAttrs.get(methodIntf);
-        if (perMethodIntf == null)
-            throw new IllegalStateException("Can't find tx attrs for view type " + methodIntf + " on bean named " + this.getComponentName());
-        ConcurrentMap<ArrayKey, TransactionAttributeType> perMethod = perMethodIntf.get(method.getName());
-        if (perMethod == null)
-            throw new IllegalStateException("Can't find tx attrs for method name " + method.getName() + " on view type " + methodIntf + " on bean named " + this.getComponentName());
-        TransactionAttributeType txAttr = perMethod.get(new ArrayKey((Object[]) method.getParameterTypes()));
+       TransactionAttributeType txAttr = txAttrs.get(new MethodTransactionAttributeKey(methodIntf, MethodIdentifier.getIdentifierForMethod(method)));
         if (txAttr == null)
-            throw new IllegalStateException("Can't find tx attr for method " + method + " on view type " + methodIntf + " on bean named " + this.getComponentName());
+            return TransactionAttributeType.REQUIRED;
         return txAttr;
     }
 
-    @Override
     public TransactionManager getTransactionManager() {
         return utilities.getTransactionManager();
     }
@@ -231,7 +261,6 @@ public abstract class EJBComponent extends BasicComponent implements org.jboss.e
         return utilities.getTransactionSynchronizationRegistry();
     }
 
-    @Override
     public int getTransactionTimeout(Method method) {
         return -1; // un-configured
     }
@@ -327,69 +356,5 @@ public abstract class EJBComponent extends BasicComponent implements org.jboss.e
 
     public EJBSecurityMetaData getSecurityMetaData() {
         return this.securityMetaData;
-    }
-
-    /**
-     * TODO: Delete this non-functional timerservice once we have a working timerservice integrated with EJBs.
-     */
-    private class NonFunctionalTimerService implements TimerService {
-
-        private final UnsupportedOperationException UNSUPPORTED_OPERATION_EXCEPTION = new UnsupportedOperationException("This is a " +
-                "temporary non-functional timerservice. No operations are allowed on it.");
-
-        @Override
-        public Timer createCalendarTimer(ScheduleExpression schedule) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createCalendarTimer(ScheduleExpression schedule, TimerConfig timerConfig) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createIntervalTimer(Date initialExpiration, long intervalDuration, TimerConfig timerConfig) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createIntervalTimer(long initialDuration, long intervalDuration, TimerConfig timerConfig) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createSingleActionTimer(Date expiration, TimerConfig timerConfig) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createSingleActionTimer(long duration, TimerConfig timerConfig) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createTimer(long duration, Serializable info) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createTimer(long initialDuration, long intervalDuration, Serializable info) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createTimer(Date expiration, Serializable info) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Timer createTimer(Date initialExpiration, long intervalDuration, Serializable info) throws IllegalArgumentException, IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
-
-        @Override
-        public Collection<Timer> getTimers() throws IllegalStateException, EJBException {
-            throw UNSUPPORTED_OPERATION_EXCEPTION;
-        }
     }
 }

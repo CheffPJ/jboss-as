@@ -23,7 +23,7 @@
 package org.jboss.as.connector.subsystems.resourceadapters;
 
 import static org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATION;
-import static org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMINUTES;
+import static org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMILLIS;
 import static org.jboss.as.connector.pool.Constants.BLOCKING_TIMEOUT_WAIT_MILLIS;
 import static org.jboss.as.connector.pool.Constants.IDLETIMEOUTMINUTES;
 import static org.jboss.as.connector.pool.Constants.MAX_POOL_SIZE;
@@ -82,7 +82,7 @@ import org.jboss.logging.Logger;
 class ResourceAdaptersSubsystemProviders {
 
     static final String[] RESOURCEADAPTER_ATTRIBUTE = new String[] { ARCHIVE, TRANSACTIONSUPPORT, BOOTSTRAPCONTEXT,
-            BEANVALIDATIONGROUPS, CONNECTIONDEFINITIONS, ADMIN_OBJECTS };
+            CONFIG_PROPERTIES, BEANVALIDATIONGROUPS, CONNECTIONDEFINITIONS, ADMIN_OBJECTS };
     static final NodeAttribute[] CONNECTIONDEFINITIONS_NODEATTRIBUTE = new NodeAttribute[] {
             new NodeAttribute(CLASS_NAME, ModelType.STRING, true), new NodeAttribute(JNDINAME, ModelType.STRING, true),
             new NodeAttribute(POOL_NAME, ModelType.STRING, false),
@@ -100,7 +100,7 @@ class ResourceAdaptersSubsystemProviders {
             new NodeAttribute(IDLETIMEOUTMINUTES, ModelType.INT, false),
             new NodeAttribute(XA_RESOURCE_TIMEOUT, ModelType.LONG, false),
             new NodeAttribute(USETRYLOCK, ModelType.BOOLEAN, false),
-            new NodeAttribute(BACKGROUNDVALIDATIONMINUTES, ModelType.INT, false),
+            new NodeAttribute(BACKGROUNDVALIDATIONMILLIS, ModelType.LONG, false),
             new NodeAttribute(BACKGROUNDVALIDATION, ModelType.BOOLEAN, false),
             new NodeAttribute(USE_FAST_FAIL, ModelType.BOOLEAN, false), new NodeAttribute(USE_CCM, ModelType.BOOLEAN, false) };
 

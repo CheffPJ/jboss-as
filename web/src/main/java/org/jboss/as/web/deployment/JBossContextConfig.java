@@ -26,7 +26,9 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.servlet.HttpConstraintElement;
 import javax.servlet.HttpMethodConstraintElement;
@@ -57,13 +59,13 @@ import org.apache.naming.resources.FileDirContext;
 import org.apache.naming.resources.ProxyDirContext;
 import org.apache.tomcat.util.IntrospectionUtils;
 import org.jboss.annotation.javaee.Icon;
-import org.jboss.as.clustering.web.ClusteringNotSupportedException;
 import org.jboss.as.clustering.web.OutgoingDistributableSessionData;
 import org.jboss.as.server.deployment.Attachments;
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.web.deployment.helpers.VFSDirContext;
 import org.jboss.as.web.session.DistributableSessionManager;
 import org.jboss.logging.Logger;
+import org.jboss.metadata.javaee.jboss.RunAsIdentityMetaData;
 import org.jboss.metadata.javaee.spec.DescriptionGroupMetaData;
 import org.jboss.metadata.javaee.spec.ParamValueMetaData;
 import org.jboss.metadata.javaee.spec.SecurityRoleMetaData;
@@ -111,7 +113,6 @@ import org.jboss.metadata.web.spec.WebResourceCollectionMetaData;
 import org.jboss.metadata.web.spec.WebResourceCollectionsMetaData;
 import org.jboss.metadata.web.spec.WelcomeFileListMetaData;
 import org.jboss.modules.Module;
-import org.jboss.modules.ModuleClassLoader;
 import org.jboss.modules.ModuleIdentifier;
 import org.jboss.vfs.VirtualFile;
 
@@ -223,9 +224,13 @@ public class JBossContextConfig extends ContextConfig {
     protected Object getInstance(String moduleName, String className, List<ParamValueMetaData> params) {
         try {
             final Module module = deploymentUnitContext.getAttachment(Attachments.MODULE);
-            ModuleClassLoader moduleClassLoader = null;
+            ClassLoader moduleClassLoader = null;
             if (moduleName == null) {
-                moduleClassLoader = module.getClassLoader();
+                if (context.getLoader() == null || context.getLoader().getClassLoader() == null) {
+                    moduleClassLoader = module.getClassLoader();
+                } else {
+                    moduleClassLoader = context.getLoader().getClassLoader();
+                }
             } else {
                 moduleClassLoader = module.getModule(ModuleIdentifier.create(moduleName)).getClassLoader();
             }
@@ -277,7 +282,7 @@ public class JBossContextConfig extends ContextConfig {
             try {
                 context.setManager(new DistributableSessionManager<OutgoingDistributableSessionData>(this.context.getParent(), metaData, this.deploymentUnitContext.getServiceRegistry()));
                 context.setDistributable(true);
-            } catch (ClusteringNotSupportedException e) {
+            } catch (Exception e) {
                 log.warn("Clustering not supported, falling back to non-clustered session manager.", e);
             }
         }
@@ -584,7 +589,7 @@ public class JBossContextConfig extends ContextConfig {
             return;
         }
         Map<String, TldMetaData> localTlds = tldsMetaData.getTlds();
-        List<TldMetaData> sharedTlds = tldsMetaData.getSharedTlds();
+        List<TldMetaData> sharedTlds = tldsMetaData.getSharedTlds(deploymentUnitContext);
         ArrayList<TagLibraryInfo> tagLibraries = new ArrayList<TagLibraryInfo>();
 
         for (String location : localTlds.keySet()) {
@@ -877,6 +882,22 @@ public class JBossContextConfig extends ContextConfig {
         if (ok && (metaData != null)) {
             // Resolve run as
             metaData.resolveRunAs();
+            Map<String, RunAsIdentityMetaData> runAs = metaData.getRunAsIdentity();
+            Map<String, RunAsIdentityMetaData> newRunAs = new ConcurrentHashMap<String, RunAsIdentityMetaData>();
+            Map<String, Set<String>> principalVersusRolesMap = metaData.getSecurityRoles().getPrincipalVersusRolesMap();
+            for (Entry<String, RunAsIdentityMetaData> entry : runAs.entrySet()) {
+                String roleName = entry.getValue().getRoleName();
+                if (principalVersusRolesMap.containsKey(roleName)) {
+                    Set<String> principals = principalVersusRolesMap.get(roleName);
+                    // assign the first (and probably only) principal as the run as principal
+                    String runAsPrincipal = principals.iterator().next();
+                    RunAsIdentityMetaData newRunAsIdentity = new RunAsIdentityMetaData(roleName, runAsPrincipal);
+                    newRunAs.put(entry.getKey(), newRunAsIdentity);
+                }
+            }
+            if (!newRunAs.isEmpty()) {
+                metaData.setRunAsIdentity(newRunAs);
+            }
         }
 
         // Configure an authenticator if we need one

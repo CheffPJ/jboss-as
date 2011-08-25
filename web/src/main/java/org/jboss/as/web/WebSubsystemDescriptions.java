@@ -476,8 +476,34 @@ class WebSubsystemDescriptions {
         node.get(type, Constants.DEFAULT_WEB_MODULE, REQUIRED).set(false);
         node.get(type, Constants.DEFAULT_WEB_MODULE, DEFAULT).set("ROOT.war");
 
+        node.get(type, Constants.ENABLE_WELCOME_ROOT, TYPE).set(ModelType.BOOLEAN);
+        node.get(type, Constants.ENABLE_WELCOME_ROOT, DESCRIPTION).set(bundle.getString("web.virtual-server.enable-welcome-root"));
+        node.get(type, Constants.ENABLE_WELCOME_ROOT, REQUIRED).set(false);
+
         getAccessLogCommonDescription(node.get(type, Constants.ACCESS_LOG), type, bundle);
         getRewriteCommonDescription(node.get(type, Constants.REWRITE), type, bundle);
+        getSsoCommonDescription(node.get(type, Constants.SSO), type, bundle);
+
+        return node;
+    }
+
+    static ModelNode getSsoCommonDescription(final ModelNode node, final String type, final ResourceBundle bundle) {
+        node.get(TYPE).set(ModelType.OBJECT);
+        node.get(DESCRIPTION).set(bundle.getString("web.virtual-server.sso"));
+        node.get(REQUIRED).set(false);
+
+        node.get(type, Constants.CACHE_CONTAINER, TYPE).set(ModelType.STRING);
+        node.get(type, Constants.CACHE_CONTAINER, DESCRIPTION).set(bundle.getString("web.virtual-server.sso.cache-container"));
+        node.get(type, Constants.CACHE_CONTAINER, REQUIRED).set(false);
+
+        node.get(type, Constants.DOMAIN, TYPE).set(ModelType.STRING);
+        node.get(type, Constants.DOMAIN, DESCRIPTION).set(bundle.getString("web.virtual-server.sso.domain"));
+        node.get(type, Constants.DOMAIN, REQUIRED).set(false);
+
+        node.get(type, Constants.REAUTHENTICATE, TYPE).set(ModelType.BOOLEAN);
+        node.get(type, Constants.REAUTHENTICATE, DESCRIPTION).set(bundle.getString("web.virtual-server.sso.reauthenticate"));
+        node.get(type, Constants.REAUTHENTICATE, REQUIRED).set(false);
+        node.get(type, Constants.REAUTHENTICATE, DEFAULT).set(false);
 
         return node;
     }

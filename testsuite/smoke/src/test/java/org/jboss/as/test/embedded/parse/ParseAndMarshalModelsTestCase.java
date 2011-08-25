@@ -21,44 +21,11 @@
 */
 package org.jboss.as.test.embedded.parse;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
-import java.io.Closeable;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.lang.management.ManagementFactory;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import javax.management.ObjectName;
-import javax.xml.namespace.QName;
-import junit.framework.Assert;
-import junit.framework.AssertionFailedError;
-import org.jboss.arquillian.container.test.api.Deployment;
-import org.jboss.arquillian.junit.Arquillian;
-import org.jboss.as.controller.AbstractControllerService;
-import org.jboss.as.controller.ControlledProcessState;
-import org.jboss.as.controller.ExtensionContext;
-import org.jboss.as.controller.ExtensionContextImpl;
-import org.jboss.as.controller.ModelController;
-import org.jboss.as.controller.OperationContext;
-import org.jboss.as.controller.OperationStepHandler;
-import org.jboss.as.controller.OperationFailedException;
-import org.jboss.as.controller.PathAddress;
-import org.jboss.as.controller.PathElement;
-import org.jboss.as.controller.descriptions.DescriptionProvider;
-import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.AUTO_START;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.BOOT_TIME;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.CORE_SERVICE;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.CPU_AFFINITY;
+import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.CRITERIA;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.EXTENSION;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.HOST;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.HTTP_INTERFACE;
@@ -80,8 +47,47 @@ import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SOC
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SOCKET_BINDING_PORT_OFFSET;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SYSTEM_PROPERTY;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.VALUE;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+
+import javax.management.ObjectName;
+import javax.xml.namespace.QName;
+
+import junit.framework.Assert;
+import junit.framework.AssertionFailedError;
+
+import org.jboss.arquillian.container.test.api.Deployment;
+import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.as.controller.AbstractControllerService;
+import org.jboss.as.controller.ControlledProcessState;
+import org.jboss.as.controller.ExtensionContext;
+import org.jboss.as.controller.ExtensionContextImpl;
+import org.jboss.as.controller.ModelController;
+import org.jboss.as.controller.OperationContext;
+import org.jboss.as.controller.OperationFailedException;
+import org.jboss.as.controller.OperationStepHandler;
+import org.jboss.as.controller.PathAddress;
+import org.jboss.as.controller.PathElement;
+import org.jboss.as.controller.descriptions.DescriptionProvider;
+import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import org.jboss.as.controller.descriptions.common.CommonProviders;
 import org.jboss.as.controller.operations.common.InterfaceAddHandler;
+import org.jboss.as.controller.operations.common.InterfaceCriteriaWriteHandler;
 import org.jboss.as.controller.operations.common.JVMHandlers;
 import org.jboss.as.controller.operations.common.NamespaceAddHandler;
 import org.jboss.as.controller.operations.common.PathAddHandler;
@@ -95,18 +101,16 @@ import org.jboss.as.controller.parsing.DomainXml;
 import org.jboss.as.controller.parsing.HostXml;
 import org.jboss.as.controller.parsing.Namespace;
 import org.jboss.as.controller.parsing.StandaloneXml;
-import org.jboss.as.controller.persistence.ConfigurationPersister;
 import org.jboss.as.controller.persistence.NullConfigurationPersister;
 import org.jboss.as.controller.persistence.XmlConfigurationPersister;
 import org.jboss.as.controller.registry.AttributeAccess;
 import org.jboss.as.controller.registry.ManagementResourceRegistration;
 import org.jboss.as.controller.registry.OperationEntry;
 import org.jboss.as.controller.registry.Resource;
-import org.jboss.as.domain.controller.FileRepository;
 import org.jboss.as.domain.controller.DomainModelUtil;
+import org.jboss.as.domain.controller.FileRepository;
 import org.jboss.as.domain.management.operations.ConnectionAddHandler;
 import org.jboss.as.domain.management.operations.SecurityRealmAddHandler;
-import org.jboss.as.host.controller.HostModelUtil;
 import org.jboss.as.host.controller.descriptions.HostDescriptionProviders;
 import org.jboss.as.host.controller.operations.HostSpecifiedInterfaceAddHandler;
 import org.jboss.as.host.controller.operations.HttpManagementAddHandler;
@@ -134,8 +138,8 @@ import org.jboss.msc.service.StartException;
 import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.asset.Asset;
 import org.jboss.vfs.VirtualFile;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -157,15 +161,15 @@ public class ParseAndMarshalModelsTestCase {
                         }, "META-INF/MANIFEST.MF");
     }
 
-    private static ServiceContainer serviceContainer;
+    private ServiceContainer serviceContainer;
 
-    @BeforeClass
-    public static void setupServiceContainer() {
+    @Before
+    public void setupServiceContainer() {
         serviceContainer = ServiceContainer.Factory.create("test");
     }
 
-    @AfterClass
-    public static void cleanup() throws Exception {
+    @After
+    public void cleanup() throws Exception {
         ManagementFactory.getPlatformMBeanServer().unregisterMBean(new ObjectName("jboss.msc:type=container,name=test"));
     }
 
@@ -254,23 +258,23 @@ public class ParseAndMarshalModelsTestCase {
 
     private void fixupOSGiStandalone(ModelNode node1, ModelNode node2) {
         //These multiline properties get extra indentation when marshalled. Put them on one line to compare properly
-        node1.get("subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").set(convertToSingleLine(node1.get("subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").asString()));
-        node2.get("subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").set(convertToSingleLine(node2.get("subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").asString()));
-        node1.get("subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node1.get("subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").asString()));
-        node2.get("subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node2.get("subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").asString()));
+        node1.get("subsystem", "osgi", "property", "org.jboss.osgi.system.modules").set(convertToSingleLine(node1.get("subsystem", "osgi", "property", "org.jboss.osgi.system.modules").asString()));
+        node2.get("subsystem", "osgi", "property", "org.jboss.osgi.system.modules").set(convertToSingleLine(node2.get("subsystem", "osgi", "property", "org.jboss.osgi.system.modules").asString()));
+        node1.get("subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node1.get("subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").asString()));
+        node2.get("subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node2.get("subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").asString()));
     }
 
     private void fixupOSGiDomain(ModelNode node1, ModelNode node2) {
         //These multiline properties get extra indentation when marshalled. Put them on one line to compare properly
-        node1.get("profile", "default", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").set(convertToSingleLine(node1.get("profile", "default", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").asString()));
-        node2.get("profile", "default", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").set(convertToSingleLine(node2.get("profile", "default", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").asString()));
-        node1.get("profile", "default", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node1.get("profile", "default", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").asString()));
-        node2.get("profile", "default", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node2.get("profile", "default", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").asString()));
+        node1.get("profile", "default", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").set(convertToSingleLine(node1.get("profile", "default", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").asString()));
+        node2.get("profile", "default", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").set(convertToSingleLine(node2.get("profile", "default", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").asString()));
+        node1.get("profile", "default", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node1.get("profile", "default", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").asString()));
+        node2.get("profile", "default", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node2.get("profile", "default", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").asString()));
 
-        node1.get("profile", "ha", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").set(convertToSingleLine(node1.get("profile", "ha", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").asString()));
-        node2.get("profile", "ha", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").set(convertToSingleLine(node2.get("profile", "ha", "subsystem", "osgi", "properties", "org.jboss.osgi.system.modules").asString()));
-        node1.get("profile", "ha", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node1.get("profile", "ha", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").asString()));
-        node2.get("profile", "ha", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node2.get("profile", "ha", "subsystem", "osgi", "properties", "org.osgi.framework.system.packages.extra").asString()));
+        node1.get("profile", "ha", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").set(convertToSingleLine(node1.get("profile", "ha", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").asString()));
+        node2.get("profile", "ha", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").set(convertToSingleLine(node2.get("profile", "ha", "subsystem", "osgi", "property", "org.jboss.osgi.system.modules").asString()));
+        node1.get("profile", "ha", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node1.get("profile", "ha", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").asString()));
+        node2.get("profile", "ha", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").set(convertToSingleLine(node2.get("profile", "ha", "subsystem", "osgi", "property", "org.osgi.framework.system.packages.extra").asString()));
     }
 
     private String convertToSingleLine(String value) {
@@ -427,6 +431,7 @@ public class ParseAndMarshalModelsTestCase {
                 ManagementResourceRegistration interfaces = hostRegistration.registerSubModel(PathElement.pathElement(INTERFACE), CommonProviders.SPECIFIED_INTERFACE_PROVIDER);
                 HostSpecifiedInterfaceAddHandler hsiah = new HostSpecifiedInterfaceAddHandler(hostControllerInfo);
                 interfaces.registerOperationHandler(InterfaceAddHandler.OPERATION_NAME, hsiah, hsiah, false);
+                interfaces.registerReadWriteAttribute(CRITERIA, null, InterfaceCriteriaWriteHandler.INSTANCE, AttributeAccess.Storage.CONFIGURATION);
 
                 //server
                 ManagementResourceRegistration servers = hostRegistration.registerSubModel(PathElement.pathElement(SERVER_CONFIG), HostDescriptionProviders.SERVER_PROVIDER);
@@ -444,6 +449,8 @@ public class ParseAndMarshalModelsTestCase {
                 //server interfaces
                 ManagementResourceRegistration serverInterfaces = servers.registerSubModel(PathElement.pathElement(INTERFACE), CommonProviders.SPECIFIED_INTERFACE_PROVIDER);
                 serverInterfaces.registerOperationHandler(InterfaceAddHandler.OPERATION_NAME, SpecifiedInterfaceAddHandler.INSTANCE, SpecifiedInterfaceAddHandler.INSTANCE, false);
+                serverInterfaces.registerReadWriteAttribute(CRITERIA, null, InterfaceCriteriaWriteHandler.INSTANCE, AttributeAccess.Storage.CONFIGURATION);
+
                 // Server system Properties
                 ManagementResourceRegistration serverSysProps = servers.registerSubModel(PathElement.pathElement(SYSTEM_PROPERTY), HostDescriptionProviders.SERVER_SYSTEM_PROPERTIES_PROVIDER);
                 serverSysProps.registerOperationHandler(SystemPropertyAddHandler.OPERATION_NAME, SystemPropertyAddHandler.INSTANCE_WITH_BOOTTIME, SystemPropertyAddHandler.INSTANCE_WITH_BOOTTIME, false);
@@ -603,6 +610,7 @@ public class ParseAndMarshalModelsTestCase {
     private void copyFile(final File src, final File dest) throws Exception {
         final InputStream in = new BufferedInputStream(new FileInputStream(src));
         try {
+            dest.getParentFile().mkdirs();
             final OutputStream out = new BufferedOutputStream(new FileOutputStream(dest));
             try {
                 int i = in.read();

@@ -24,9 +24,13 @@ package org.jboss.as.webservices.util;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import javax.jws.WebService;
+import javax.servlet.Servlet;
 import javax.xml.ws.WebServiceProvider;
 
 import org.jboss.as.server.deployment.AttachmentKey;
@@ -67,6 +71,8 @@ public final class ASHelper {
 
     /** @WebServiceProvider jandex annotation. */
     public static final DotName WEB_SERVICE_PROVIDER_ANNOTATION = DotName.createSimple(WebServiceProvider.class.getName());
+
+    private static final String SERVLET_CLASS_NAME = Servlet.class.getName();
 
     /**
      * Forbidden constructor.
@@ -218,8 +224,7 @@ public final class ASHelper {
      */
     private static List<ServletMetaData> getWebServiceServlets(final DeploymentUnit unit, final boolean jaxws) {
         final JBossWebMetaData jbossWebMD = getJBossWebMetaData(unit);
-        final CompositeIndex compositeIndex = ASHelper.getRequiredAttachment(unit, Attachments.COMPOSITE_ANNOTATION_INDEX);
-        return selectWebServiceServlets(compositeIndex, jbossWebMD.getServlets(), jaxws);
+        return selectWebServiceServlets(unit, jbossWebMD.getServlets(), jaxws);
     }
 
     /**
@@ -230,17 +235,16 @@ public final class ASHelper {
      * @param jaxws if passed value is <b>true</b> JAXWS servlets list will be returned, otherwise JAXRPC servlets list
      * @return either JAXRPC or JAXWS servlets list
      */
-    public static <T extends ServletMetaData> List<ServletMetaData> selectWebServiceServlets(final CompositeIndex index, final Collection<T> smd, final boolean jaxws) {
+    private static <T extends ServletMetaData> List<ServletMetaData> selectWebServiceServlets(final DeploymentUnit unit, final Collection<T> smd, final boolean jaxws) {
         if (smd == null) return Collections.emptyList();
+        final CompositeIndex index = ASHelper.getOptionalAttachment(unit, Attachments.COMPOSITE_ANNOTATION_INDEX);
 
         final List<ServletMetaData> endpoints = new ArrayList<ServletMetaData>();
 
         for (final ServletMetaData servletMD : smd) {
-            final boolean isWebServiceEndpoint = isWebserviceEndpoint(servletMD, index);
-            final boolean isJaxwsEndpoint = jaxws && isWebServiceEndpoint;
-            final boolean isJaxrpcEndpoint = !jaxws && isWebServiceEndpoint;
-
-            if (isJaxwsEndpoint || isJaxrpcEndpoint) {
+            final boolean isWebServiceEndpoint = index != null ? isWebserviceEndpoint(servletMD, index, jaxws) : isWebserviceEndpoint(
+                    servletMD, unit.getAttachment(WSAttachmentKeys.CLASSLOADER_KEY), jaxws);
+            if (isWebServiceEndpoint) {
                 endpoints.add(servletMD);
             }
         }
@@ -248,24 +252,104 @@ public final class ASHelper {
         return endpoints;
     }
 
-    private static boolean isWebserviceEndpoint(final ServletMetaData servletMD, final CompositeIndex index) {
+    private static boolean isWebserviceEndpoint(final ServletMetaData servletMD, final CompositeIndex index, boolean jaxws) {
         final String endpointClassName = ASHelper.getEndpointName(servletMD);
         if (isJSP(endpointClassName)) return false;
         final DotName endpointDotName = DotName.createSimple(endpointClassName);
         final ClassInfo endpointClassInfo = index.getClassByName(endpointDotName);
 
         if (endpointClassInfo != null) {
-            if (endpointClassInfo.annotations().containsKey(WEB_SERVICE_ANNOTATION))
-                return true;
-            if (endpointClassInfo.annotations().containsKey(WEB_SERVICE_PROVIDER_ANNOTATION))
-                return true;
+            if (jaxws) {
+                //directly check annotations when looking for jaxws endpoints
+                if (endpointClassInfo.annotations().containsKey(WEB_SERVICE_ANNOTATION))
+                    return true;
+                if (endpointClassInfo.annotations().containsKey(WEB_SERVICE_PROVIDER_ANNOTATION))
+                    return true;
+            } else {
+                //just verify the class is not a servlet for jaxrpc endpoints
+                if (!isServlet(endpointClassInfo, index))
+                    return true;
+            }
         }
 
         return false;
     }
 
+    private static boolean isWebserviceEndpoint(final ServletMetaData servletMD, final ClassLoader loader, boolean jaxws) {
+        final String endpointClassName = ASHelper.getEndpointName(servletMD);
+        if (isJSP(endpointClassName)) return false;
+        final Class<?> endpointClass = ASHelper.getEndpointClass(endpointClassName, loader);
+        if (endpointClass != null) {
+            if (jaxws) {
+                if (endpointClass.isAnnotationPresent(WebService.class))
+                    return true;
+                if (endpointClass.isAnnotationPresent(WebServiceProvider.class))
+                    return true;
+            } else {
+                if (!Servlet.class.isAssignableFrom(endpointClass))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static Class<?> getEndpointClass(final String endpointClassName, final ClassLoader loader) {
+        try {
+            final Class<?> endpointClass = loader.loadClass(endpointClassName);
+            return (!Servlet.class.isAssignableFrom(endpointClass)) ? endpointClass : null;
+        } catch (ClassNotFoundException cnfe) {
+            LOGGER.warn("Cannot load servlet class: " + endpointClassName, cnfe);
+            return null;
+        }
+    }
+
     private static boolean isJSP(final String endpointClassName) {
         return endpointClassName == null || endpointClassName.length() == 0;
+    }
+
+    protected static boolean isServlet(final ClassInfo info, CompositeIndex index) {
+        Set<DotName> interfacesToProcess = new HashSet<DotName>();
+        Set<DotName> processedInterfaces = new HashSet<DotName>();
+        boolean b = isServlet(info, index, interfacesToProcess);
+        while (!b && !interfacesToProcess.isEmpty()) {
+            final Iterator<DotName> toProcess = interfacesToProcess.iterator();
+            DotName dn = toProcess.next();
+            toProcess.remove();
+            processedInterfaces.add(dn);
+            b = extendsServlet(dn, index, interfacesToProcess, processedInterfaces);
+        }
+        return b;
+    }
+
+    private static boolean isServlet(final ClassInfo info, CompositeIndex index, Set<DotName> interfaces) {
+        for (DotName dn : info.interfaces()) {
+            if (SERVLET_CLASS_NAME.equals(dn.toString())) {
+                return true;
+            } else {
+                interfaces.add(dn);
+            }
+        }
+        final DotName superName = info.superName();
+        if (!"java.lang.Object".equals(superName.toString())) {
+            ClassInfo su = index.getClassByName(superName);
+            if (su != null) {
+                return isServlet(su, index, interfaces);
+            }
+        }
+        return false;
+    }
+
+    private static boolean extendsServlet(DotName current, CompositeIndex index, Set<DotName> interfacesToProcess, Set<DotName> processedInterfaces) {
+        ClassInfo ci = index.getClassByName(current);
+        if (ci != null) {
+            final DotName superName = ci.superName();
+            if (SERVLET_CLASS_NAME.equals(superName.toString())) {
+                return true;
+            } else if (!"java.lang.Object".equals(superName.toString()) && !processedInterfaces.contains(superName)) {
+                interfacesToProcess.add(superName);
+            }
+        }
+        return false;
     }
 
     /**
@@ -282,6 +366,8 @@ public final class ASHelper {
             if (result == null) {
                 result = warMetaData.getJbossWebMetaData();
             }
+        } else {
+            result = ASHelper.getOptionalAttachment(unit, WSAttachmentKeys.JBOSSWEB_METADATA_KEY);
         }
         return result;
     }

@@ -28,8 +28,10 @@ import org.jboss.as.ejb3.component.session.SessionBeanComponent;
 import org.jboss.as.naming.ManagedReference;
 import org.jboss.ejb3.cache.Cache;
 import org.jboss.ejb3.cache.StatefulObjectFactory;
+import org.jboss.ejb3.context.spi.SessionContext;
 import org.jboss.invocation.Interceptor;
 import org.jboss.invocation.InterceptorFactory;
+import org.jboss.invocation.InterceptorFactoryContext;
 import org.jboss.invocation.SimpleInterceptorFactoryContext;
 import org.jboss.logging.Logger;
 import org.jboss.msc.service.StopContext;
@@ -44,6 +46,7 @@ import javax.transaction.Transaction;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,6 +100,14 @@ public class StatefulSessionComponent extends SessionBeanComponent {
                 instance.destroy();
             }
         });
+    }
+
+    @Override
+    public <T> T getBusinessObject(SessionContext ctx, Class<T> businessInterface) throws IllegalStateException {
+        if(businessInterface == null) {
+            throw new IllegalStateException("Business interface type cannot be null");
+        }
+        return createViewInstanceProxy(businessInterface, Collections.<Object, Object>singletonMap(SESSION_ATTACH_KEY, getSessionIdOf(ctx)));
     }
 
     @Override
@@ -192,7 +203,7 @@ public class StatefulSessionComponent extends SessionBeanComponent {
     }
 
     @Override
-    protected BasicComponentInstance instantiateComponentInstance(AtomicReference<ManagedReference> instanceReference, Interceptor preDestroyInterceptor, Map<Method, Interceptor> methodInterceptors) {
+    protected BasicComponentInstance instantiateComponentInstance(AtomicReference<ManagedReference> instanceReference, Interceptor preDestroyInterceptor, Map<Method, Interceptor> methodInterceptors, final InterceptorFactoryContext interceptorContext) {
         return new StatefulSessionComponentInstance(this, instanceReference, preDestroyInterceptor, methodInterceptors);
     }
 

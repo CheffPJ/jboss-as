@@ -23,7 +23,8 @@
 package org.jboss.as.connector.subsystems.datasources;
 
 import static org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATION;
-import static org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMINUTES;
+import static org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMILLIS;
+import static org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMINUTES_REMOVE;
 import static org.jboss.as.connector.pool.Constants.BLOCKING_TIMEOUT_WAIT_MILLIS;
 import static org.jboss.as.connector.pool.Constants.IDLETIMEOUTMINUTES;
 import static org.jboss.as.connector.pool.Constants.MAX_POOL_SIZE;
@@ -31,18 +32,20 @@ import static org.jboss.as.connector.pool.Constants.MIN_POOL_SIZE;
 import static org.jboss.as.connector.pool.Constants.POOL_PREFILL;
 import static org.jboss.as.connector.pool.Constants.POOL_USE_STRICT_MIN;
 import static org.jboss.as.connector.pool.Constants.USE_FAST_FAIL;
+import static org.jboss.as.connector.pool.Constants.USE_FAST_FAIL_REMOVE;
 import static org.jboss.as.connector.subsystems.datasources.Constants.ALLOCATION_RETRY;
 import static org.jboss.as.connector.subsystems.datasources.Constants.ALLOCATION_RETRY_WAIT_MILLIS;
 import static org.jboss.as.connector.subsystems.datasources.Constants.CHECKVALIDCONNECTIONSQL;
 import static org.jboss.as.connector.subsystems.datasources.Constants.CONNECTION_PROPERTIES;
 import static org.jboss.as.connector.subsystems.datasources.Constants.CONNECTION_URL;
+import static org.jboss.as.connector.subsystems.datasources.Constants.DATASOURCE_CLASS;
 import static org.jboss.as.connector.subsystems.datasources.Constants.DATASOURCE_DRIVER;
 import static org.jboss.as.connector.subsystems.datasources.Constants.DATASOURCE_DRIVER_CLASS;
 import static org.jboss.as.connector.subsystems.datasources.Constants.ENABLED;
 import static org.jboss.as.connector.subsystems.datasources.Constants.EXCEPTIONSORTERCLASSNAME;
 import static org.jboss.as.connector.subsystems.datasources.Constants.EXCEPTIONSORTER_PROPERTIES;
 import static org.jboss.as.connector.subsystems.datasources.Constants.FLUSH_STRATEGY;
-import static org.jboss.as.connector.subsystems.datasources.Constants.INTERLIVING;
+import static org.jboss.as.connector.subsystems.datasources.Constants.INTERLEAVING;
 import static org.jboss.as.connector.subsystems.datasources.Constants.JNDINAME;
 import static org.jboss.as.connector.subsystems.datasources.Constants.JTA;
 import static org.jboss.as.connector.subsystems.datasources.Constants.NEW_CONNECTION_SQL;
@@ -78,7 +81,7 @@ import static org.jboss.as.connector.subsystems.datasources.Constants.USE_JAVA_C
 import static org.jboss.as.connector.subsystems.datasources.Constants.VALIDATEONMATCH;
 import static org.jboss.as.connector.subsystems.datasources.Constants.VALIDCONNECTIONCHECKERCLASSNAME;
 import static org.jboss.as.connector.subsystems.datasources.Constants.VALIDCONNECTIONCHECKER_PROPERTIES;
-import static org.jboss.as.connector.subsystems.datasources.Constants.WRAP_XA_DATASOURCE;
+import static org.jboss.as.connector.subsystems.datasources.Constants.WRAP_XA_RESOURCE;
 import static org.jboss.as.connector.subsystems.datasources.Constants.XADATASOURCECLASS;
 import static org.jboss.as.connector.subsystems.datasources.Constants.XADATASOURCEPROPERTIES;
 import static org.jboss.as.connector.subsystems.datasources.Constants.XA_RESOURCE_TIMEOUT;
@@ -127,6 +130,7 @@ class DataSourceModelNodeUtil {
         }
         setStringIfNotNull(dataSourceModel, CONNECTION_URL, dataSource.getConnectionUrl());
         setStringIfNotNull(dataSourceModel, DATASOURCE_DRIVER_CLASS, dataSource.getDriverClass());
+        setStringIfNotNull(dataSourceModel, DATASOURCE_CLASS, dataSource.getDataSourceClass());
         setStringIfNotNull(dataSourceModel, JNDINAME, dataSource.getJndiName());
         setStringIfNotNull(dataSourceModel, DATASOURCE_DRIVER, dataSource.getDriver());
         setStringIfNotNull(dataSourceModel, NEW_CONNECTION_SQL, dataSource.getNewConnectionSql());
@@ -193,8 +197,10 @@ class DataSourceModelNodeUtil {
                     validation.getStaleConnectionChecker());
             setExtensionIfNotNull(dataSourceModel, VALIDCONNECTIONCHECKERCLASSNAME, VALIDCONNECTIONCHECKER_PROPERTIES,
                     validation.getValidConnectionChecker());
-            setLongIfNotNull(dataSourceModel, BACKGROUNDVALIDATIONMINUTES, validation.getBackgroundValidationMinutes());
+            setLongIfNotNull(dataSourceModel, BACKGROUNDVALIDATIONMINUTES_REMOVE, validation.getBackgroundValidationMillis());
+            setLongIfNotNull(dataSourceModel, BACKGROUNDVALIDATIONMILLIS, validation.getBackgroundValidationMillis());
             setBooleanIfNotNull(dataSourceModel, BACKGROUNDVALIDATION, validation.isBackgroundValidation());
+            setBooleanIfNotNull(dataSourceModel, USE_FAST_FAIL_REMOVE, validation.isUseFastFail());
             setBooleanIfNotNull(dataSourceModel, USE_FAST_FAIL, validation.isUseFastFail());
             setBooleanIfNotNull(dataSourceModel, VALIDATEONMATCH, validation.isValidateOnMatch());
         }
@@ -222,11 +228,11 @@ class DataSourceModelNodeUtil {
             if (pool.getFlushStrategy() != null) {
                 setStringIfNotNull(xaDataSourceModel, FLUSH_STRATEGY, pool.getFlushStrategy().getName());
             }
-            setBooleanIfNotNull(xaDataSourceModel, INTERLIVING, pool.isInterleaving());
+            setBooleanIfNotNull(xaDataSourceModel, INTERLEAVING, pool.isInterleaving());
             setBooleanIfNotNull(xaDataSourceModel, NOTXSEPARATEPOOL, pool.isNoTxSeparatePool());
             setBooleanIfNotNull(xaDataSourceModel, PAD_XID, pool.isPadXid());
             setBooleanIfNotNull(xaDataSourceModel, SAME_RM_OVERRIDE, pool.isSameRmOverride());
-            setBooleanIfNotNull(xaDataSourceModel, WRAP_XA_DATASOURCE, pool.isWrapXaDataSource());
+            setBooleanIfNotNull(xaDataSourceModel, WRAP_XA_RESOURCE, pool.isWrapXaDataSource());
         }
         final DsSecurity security = xaDataSource.getSecurity();
         if (security != null) {
@@ -276,8 +282,10 @@ class DataSourceModelNodeUtil {
                     validation.getStaleConnectionChecker());
             setExtensionIfNotNull(xaDataSourceModel, VALIDCONNECTIONCHECKERCLASSNAME, VALIDCONNECTIONCHECKER_PROPERTIES,
                     validation.getValidConnectionChecker());
-            setLongIfNotNull(xaDataSourceModel, BACKGROUNDVALIDATIONMINUTES, validation.getBackgroundValidationMinutes());
+            setLongIfNotNull(xaDataSourceModel, BACKGROUNDVALIDATIONMINUTES_REMOVE, validation.getBackgroundValidationMillis());
+            setLongIfNotNull(xaDataSourceModel, BACKGROUNDVALIDATIONMILLIS, validation.getBackgroundValidationMillis());
             setBooleanIfNotNull(xaDataSourceModel, BACKGROUNDVALIDATION, validation.isBackgroundValidation());
+            setBooleanIfNotNull(xaDataSourceModel, USE_FAST_FAIL_REMOVE, validation.isUseFastFail());
             setBooleanIfNotNull(xaDataSourceModel, USE_FAST_FAIL, validation.isUseFastFail());
             setBooleanIfNotNull(xaDataSourceModel, VALIDATEONMATCH, validation.isValidateOnMatch());
         }
@@ -308,6 +316,7 @@ class DataSourceModelNodeUtil {
         }
         final String connectionUrl = getStringIfSetOrGetDefault(dataSourceNode, CONNECTION_URL, null);
         final String driverClass = getStringIfSetOrGetDefault(dataSourceNode, DATASOURCE_DRIVER_CLASS, null);
+        final String dataSourceClass = getStringIfSetOrGetDefault(dataSourceNode, DATASOURCE_CLASS, null);
         final String jndiName = getStringIfSetOrGetDefault(dataSourceNode, JNDINAME, null);
         final String driver = getStringIfSetOrGetDefault(dataSourceNode, DATASOURCE_DRIVER, null);
         final String newConnectionSql = getStringIfSetOrGetDefault(dataSourceNode, NEW_CONNECTION_SQL, null);
@@ -361,17 +370,19 @@ class DataSourceModelNodeUtil {
         final Extension validConnectionChecker = extractExtension(dataSourceNode, VALIDCONNECTIONCHECKERCLASSNAME,
                 VALIDCONNECTIONCHECKER_PROPERTIES);
 
-        final Long backgroundValidationMinutes = getLongIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATIONMINUTES, null);
+        Long backgroundValidationMillis = getLongIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATIONMINUTES_REMOVE, null);
+        backgroundValidationMillis = getLongIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATIONMILLIS, null);
         final boolean backgroundValidation = getBooleanIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATION, false);
-        final boolean useFastFail = getBooleanIfSetOrGetDefault(dataSourceNode, USE_FAST_FAIL, false);
+        boolean useFastFail = getBooleanIfSetOrGetDefault(dataSourceNode, USE_FAST_FAIL_REMOVE, false);
+        useFastFail = getBooleanIfSetOrGetDefault(dataSourceNode, USE_FAST_FAIL, false);
         final boolean validateOnMatch = getBooleanIfSetOrGetDefault(dataSourceNode, VALIDATEONMATCH, false);
         final boolean spy = getBooleanIfSetOrGetDefault(dataSourceNode, SPY, false);
         final boolean useCcm = getBooleanIfSetOrGetDefault(dataSourceNode, USE_CCM, true);
 
-        final Validation validation = new ValidationImpl(backgroundValidation, backgroundValidationMinutes, useFastFail,
+        final Validation validation = new ValidationImpl(backgroundValidation, backgroundValidationMillis, useFastFail,
                 validConnectionChecker, checkValidConnectionSql, validateOnMatch, staleConnectionChecker, exceptionSorter);
 
-        return new DataSourceImpl(connectionUrl, driverClass, driver, transactionIsolation, connectionProperties, timeOut,
+        return new DataSourceImpl(connectionUrl, driverClass, dataSourceClass, driver, transactionIsolation, connectionProperties, timeOut,
                 security, statement, validation, urlDelimiter, urlSelectorStrategyClassName, newConnectionSql, useJavaContext,
                 poolName, enabled, jndiName, spy, useCcm, jta, pool);
     }
@@ -396,11 +407,11 @@ class DataSourceModelNodeUtil {
         final Integer minPoolSize = getIntIfSetOrGetDefault(dataSourceNode, MIN_POOL_SIZE, null);
         final boolean prefill = getBooleanIfSetOrGetDefault(dataSourceNode, POOL_PREFILL, false);
         final boolean useStrictMin = getBooleanIfSetOrGetDefault(dataSourceNode, POOL_USE_STRICT_MIN, false);
-        final boolean interleaving = getBooleanIfSetOrGetDefault(dataSourceNode, INTERLIVING, false);
+        final boolean interleaving = getBooleanIfSetOrGetDefault(dataSourceNode, INTERLEAVING, false);
         final boolean noTxSeparatePool = getBooleanIfSetOrGetDefault(dataSourceNode, NOTXSEPARATEPOOL, false);
         final boolean padXid = getBooleanIfSetOrGetDefault(dataSourceNode, PAD_XID, false);
         final boolean isSameRmOverride = getBooleanIfSetOrGetDefault(dataSourceNode, SAME_RM_OVERRIDE, false);
-        final boolean wrapXaDataSource = getBooleanIfSetOrGetDefault(dataSourceNode, WRAP_XA_DATASOURCE, false);
+        final boolean wrapXaDataSource = getBooleanIfSetOrGetDefault(dataSourceNode, WRAP_XA_RESOURCE, true);
         final FlushStrategy flushStrategy = dataSourceNode.hasDefined(FLUSH_STRATEGY) ? FlushStrategy.forName(dataSourceNode
                 .get(FLUSH_STRATEGY).asString()) : FlushStrategy.FAILING_CONNECTION_ONLY;
 
@@ -442,13 +453,15 @@ class DataSourceModelNodeUtil {
         final Extension validConnectionChecker = extractExtension(dataSourceNode, VALIDCONNECTIONCHECKERCLASSNAME,
                 VALIDCONNECTIONCHECKER_PROPERTIES);
 
-        final Long backgroundValidationMinutes = getLongIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATIONMINUTES, null);
+        Long backgroundValidationMillis = getLongIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATIONMINUTES_REMOVE, null);
+        backgroundValidationMillis = getLongIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATIONMILLIS, null);
         final boolean backgroundValidation = getBooleanIfSetOrGetDefault(dataSourceNode, BACKGROUNDVALIDATION, false);
-        final boolean useFastFail = getBooleanIfSetOrGetDefault(dataSourceNode, USE_FAST_FAIL, false);
+        boolean useFastFail = getBooleanIfSetOrGetDefault(dataSourceNode, USE_FAST_FAIL_REMOVE, false);
+        useFastFail = getBooleanIfSetOrGetDefault(dataSourceNode, USE_FAST_FAIL, false);
         final boolean validateOnMatch = getBooleanIfSetOrGetDefault(dataSourceNode, VALIDATEONMATCH, false);
         final boolean spy = getBooleanIfSetOrGetDefault(dataSourceNode, SPY, false);
         final boolean useCcm = getBooleanIfSetOrGetDefault(dataSourceNode, USE_CCM, true);
-        final Validation validation = new ValidationImpl(backgroundValidation, backgroundValidationMinutes, useFastFail,
+        final Validation validation = new ValidationImpl(backgroundValidation, backgroundValidationMillis, useFastFail,
                 validConnectionChecker, checkValidConnectionSql, validateOnMatch, staleConnectionChecker, exceptionSorter);
 
         final String recoveryUsername = getStringIfSetOrGetDefault(dataSourceNode, RECOVERY_USERNAME, null);

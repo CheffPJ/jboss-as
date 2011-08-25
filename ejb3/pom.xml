@@ -72,14 +72,17 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>jboss-as-ee</artifactId>
         </dependency>
+
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jboss-as-security</artifactId>
         </dependency>
+
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jboss-as-server</artifactId>
         </dependency>
+
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jboss-as-transactions</artifactId>
@@ -87,8 +90,13 @@
                 <exclusion>
                     <groupId> org.jboss.spec.javax.resource</groupId>
                     <artifactId>jboss-connector-api_1.5_spec</artifactId>
-               </exclusion>
+                </exclusion>
             </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.hibernate.javax.persistence</groupId>
+            <artifactId>hibernate-jpa-2.0-api</artifactId>
         </dependency>
 
         <dependency>
@@ -126,15 +134,20 @@
             <groupId>org.jboss.ejb3.concurrency</groupId>
             <artifactId>jboss-ejb3-concurrency-impl</artifactId>
         </dependency>
-        
+
         <dependency>
-            <groupId>org.jboss.ejb3.effigy</groupId>
-            <artifactId>jboss-ejb3-effigy-int2</artifactId>
+            <groupId>org.jboss.ejb3.timerservice</groupId>
+            <artifactId>jboss-ejb3-timerservice-mk2</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.jboss.ejb3.tx2</groupId>
             <artifactId>jboss-ejb3-tx2-impl</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.spec.javax.jms</groupId>
+            <artifactId>jboss-jms-api_1.1_spec</artifactId>
         </dependency>
 
         <dependency>
@@ -146,6 +159,12 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.as</groupId>
+            <artifactId>jboss-as-subsystem-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

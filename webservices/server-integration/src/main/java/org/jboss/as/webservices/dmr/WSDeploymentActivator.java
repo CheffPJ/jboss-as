@@ -22,7 +22,7 @@
 
 package org.jboss.as.webservices.dmr;
 
-import org.jboss.as.ee.component.EEResourceReferenceProcessorRegistry;
+import org.jboss.as.ee.component.deployers.EEResourceReferenceProcessorRegistry;
 import org.jboss.as.server.DeploymentProcessorTarget;
 import org.jboss.as.server.deployment.Phase;
 import org.jboss.as.webservices.deployers.AspectDeploymentProcessor;
@@ -33,17 +33,10 @@ import org.jboss.as.webservices.deployers.WSJMSIntegrationProcessor;
 import org.jboss.as.webservices.deployers.WSModelDeploymentProcessor;
 import org.jboss.as.webservices.deployers.WSTypeDeploymentProcessor;
 import org.jboss.as.webservices.deployers.WebServiceContextResourceProcessor;
-import org.jboss.as.webservices.parser.WSDeploymentAspectParser;
+import org.jboss.as.webservices.deployers.deployment.DeploymentAspectsProvider;
 import org.jboss.logging.Logger;
-import org.jboss.ws.common.sort.DeploymentAspectSorter;
-import org.jboss.wsf.spi.classloading.ClassLoaderProvider;
 import org.jboss.wsf.spi.deployment.DeploymentAspect;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.Enumeration;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -72,48 +65,16 @@ final class WSDeploymentActivator {
         EEResourceReferenceProcessorRegistry.registerResourceReferenceProcessor(new WebServiceContextResourceProcessor());
     }
 
-    private static List<DeploymentAspect> getDeploymentAspects(final ClassLoader cl, final String resourcePath)
-    {
-        try {
-            Enumeration<URL> urls = WSDeploymentActivator.class.getClassLoader().getResources(resourcePath);
-            if (urls != null) {
-                URL url = urls.nextElement();
-                InputStream is = null;
-                try {
-                    is = url.openStream();
-                    return WSDeploymentAspectParser.parse(is, cl);
-                } finally {
-                    if (is != null) {
-                        try {
-                            is.close();
-                        } catch (Exception e) {
-                            // ignore
-                        }
-                    }
-                }
-            }
-            else {
-                throw new RuntimeException("Could not load WS deployment aspects from " + resourcePath);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Could not load WS deployment aspects from " + resourcePath, e);
-        }
-    }
-
     private static void addDeploymentProcessors(final DeploymentProcessorTarget processorTarget, final Phase phase, final int priority) {
         int index = 1;
-        for (final DeploymentAspect da : getSortedDeploymentAspects()) {
-            LOGGER.tracef("Installing aspect %s", da.getClass().getName());
+        List<DeploymentAspect> aspects = DeploymentAspectsProvider.getSortedDeploymentAspects();
+        boolean trace = LOGGER.isTraceEnabled();
+        for (final DeploymentAspect da : aspects) {
+            if (trace) {
+                LOGGER.tracef("Installing aspect %s", da.getClass().getName());
+            }
             processorTarget.addDeploymentProcessor(phase, priority + index++, new AspectDeploymentProcessor(da));
         }
-    }
-
-    private static List<DeploymentAspect> getSortedDeploymentAspects() {
-        final List<DeploymentAspect> deploymentAspects = new LinkedList<DeploymentAspect>();
-        ClassLoader cl = ClassLoaderProvider.getDefaultProvider().getServerIntegrationClassLoader();
-        deploymentAspects.addAll(getDeploymentAspects(cl, "/META-INF/stack-agnostic-deployment-aspects.xml"));
-        deploymentAspects.addAll(getDeploymentAspects(cl, "/META-INF/stack-specific-deployment-aspects.xml"));
-        return DeploymentAspectSorter.getInstance().sort(deploymentAspects);
     }
 
 }

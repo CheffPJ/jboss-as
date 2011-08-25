@@ -214,6 +214,11 @@
         </dependency>
 
         <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
         </dependency>
@@ -548,6 +553,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-envers</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.hibernate.javax.persistence</groupId>
             <artifactId>hibernate-jpa-2.0-api</artifactId>
         </dependency>
@@ -690,6 +700,11 @@
 
         <dependency>
             <groupId>org.jboss.as</groupId>
+            <artifactId>jboss-as-ee-deployment</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.as</groupId>
             <artifactId>jboss-as-ejb3</artifactId>
         </dependency>
 
@@ -809,6 +824,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.jboss.as</groupId>
+            <artifactId>jboss-as-xts</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.jboss.classfilewriter</groupId>
             <artifactId>jboss-classfilewriter</artifactId>
         </dependency>
@@ -854,18 +874,18 @@
         </dependency>
 
         <dependency>
-            <groupId>org.jboss.ejb3.effigy</groupId>
-            <artifactId>jboss-ejb3-effigy-api</artifactId>
+            <groupId>org.jboss.ejb3.timerservice</groupId>
+            <artifactId>ejb31-calendar-expr-parser</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.jboss.ejb3.effigy</groupId>
-            <artifactId>jboss-ejb3-effigy-common</artifactId>
+            <groupId>org.jboss.ejb3.timerservice</groupId>
+            <artifactId>jboss-ejb3-timerservice-api</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.jboss.ejb3.effigy</groupId>
-            <artifactId>jboss-ejb3-effigy-int2</artifactId>
+            <groupId>org.jboss.ejb3.timerservice</groupId>
+            <artifactId>jboss-ejb3-timerservice-mk2</artifactId>
         </dependency>
 
         <dependency>
@@ -881,6 +901,21 @@
         <dependency>
             <groupId>org.jboss.as</groupId>
             <artifactId>jboss-as-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.as</groupId>
+            <artifactId>jboss-as-jpa-hibernate3</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.as</groupId>
+            <artifactId>jboss-as-jpa-hibernate4</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.as</groupId>
+            <artifactId>jboss-as-jpa-spi</artifactId>
         </dependency>
 
         <dependency>

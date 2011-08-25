@@ -23,6 +23,7 @@
 package org.jboss.as.security;
 
 import org.jboss.as.controller.registry.Resource;
+import org.jboss.as.naming.ServiceBasedNamingStore;
 import static org.jboss.as.security.Constants.AUDIT_MANAGER_CLASS_NAME;
 import static org.jboss.as.security.Constants.AUTHENTICATION_MANAGER_CLASS_NAME;
 import static org.jboss.as.security.Constants.AUTHORIZATION_MANAGER_CLASS_NAME;
@@ -42,7 +43,6 @@ import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationStepHandler;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.as.controller.ServiceVerificationHandler;
-import org.jboss.as.naming.NamingStore;
 import org.jboss.as.naming.deployment.ContextNames;
 import org.jboss.as.naming.service.BinderService;
 import org.jboss.as.security.context.SecurityDomainJndiInjectable;
@@ -139,6 +139,10 @@ class SecuritySubsystemAdd implements OperationStepHandler {
                 Property prop = node.asProperty();
                 securityProperties.setProperty(prop.getName(), prop.getValue().asString());
             }
+        }
+
+        if(operation.hasDefined(Constants.VAULT)) {
+            subModel.get(Constants.VAULT).set(operation.get(Constants.VAULT));
         }
 
         if (operation.hasDefined(AUTHENTICATION_MANAGER_CLASS_NAME)) {
@@ -253,9 +257,9 @@ class SecuritySubsystemAdd implements OperationStepHandler {
                         // add service to bind SecurityDomainJndiInjectable to JNDI
                         final SecurityDomainJndiInjectable securityDomainJndiInjectable = new SecurityDomainJndiInjectable();
                         final BinderService binderService = new BinderService("jaas");
-                        target.addService(ContextNames.JAVA_CONTEXT_SERVICE_NAME.append("jboss", "jaas"), binderService)
+                        target.addService(ContextNames.JBOSS_CONTEXT_SERVICE_NAME.append("jaas"), binderService)
                                 .addInjection(binderService.getManagedObjectInjector(), securityDomainJndiInjectable)
-                                .addDependency(ContextNames.JAVA_CONTEXT_SERVICE_NAME.append("jboss"), NamingStore.class,
+                                .addDependency(ContextNames.JBOSS_CONTEXT_SERVICE_NAME, ServiceBasedNamingStore.class,
                                         binderService.getNamingStoreInjector())
                                 .addDependency(SecurityManagementService.SERVICE_NAME, ISecurityManagement.class,
                                         securityDomainJndiInjectable.getSecurityManagementInjector())

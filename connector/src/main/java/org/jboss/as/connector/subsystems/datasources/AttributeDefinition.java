@@ -30,9 +30,10 @@ import org.jboss.dmr.ModelType;
  */
 public enum AttributeDefinition {
     CONNECTION_URL(Constants.CONNECTION_URL, ModelType.STRING, true), DRIVER_CLASS(Constants.DATASOURCE_DRIVER_CLASS,
+            ModelType.STRING, true), DATASOURCE_CLASS(Constants.DATASOURCE_CLASS,
             ModelType.STRING, true), JNDINAME(Constants.JNDINAME, ModelType.STRING, true), DRIVER(Constants.DATASOURCE_DRIVER,
             ModelType.STRING, true), NEW_CONNECTION_SQL(Constants.NEW_CONNECTION_SQL, ModelType.STRING, false), POOLNAME(
-            Constants.POOLNAME, ModelType.STRING, false), URL_DELIMITER(Constants.URL_DELIMITER, ModelType.STRING, false), URL_SELECTOR_STRATEGY_CLASS_NAME(
+            Constants.POOLNAME, ModelType.STRING, true), URL_DELIMITER(Constants.URL_DELIMITER, ModelType.STRING, false), URL_SELECTOR_STRATEGY_CLASS_NAME(
             Constants.URL_SELECTOR_STRATEGY_CLASS_NAME, ModelType.STRING, false), USE_JAVA_CONTEXT(Constants.USE_JAVA_CONTEXT,
             ModelType.BOOLEAN, false), ENABLED(Constants.ENABLED, ModelType.BOOLEAN, false), JTA(Constants.JTA,
             ModelType.BOOLEAN, false), MAX_POOL_SIZE(org.jboss.as.connector.pool.Constants.MAX_POOL_SIZE, ModelType.INT, false), MIN_POOL_SIZE(
@@ -55,22 +56,24 @@ public enum AttributeDefinition {
             Constants.STALECONNECTIONCHECKERCLASSNAME, ModelType.STRING, false), STALECONNECTIONCHECKER_PROPERTIES(
             Constants.STALECONNECTIONCHECKER_PROPERTIES, ModelType.OBJECT, false), VALIDCONNECTIONCHECKERCLASSNAME(
             Constants.VALIDCONNECTIONCHECKERCLASSNAME, ModelType.STRING, false), VALIDCONNECTIONCHECKER_PROPERTIES(
-            Constants.VALIDCONNECTIONCHECKER_PROPERTIES, ModelType.OBJECT, false), BACKGROUNDVALIDATIONMINUTES(
-            org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMINUTES, ModelType.LONG, false), BACKGROUNDVALIDATION(
+            Constants.VALIDCONNECTIONCHECKER_PROPERTIES, ModelType.OBJECT, false), BACKGROUNDVALIDATIONMILLIS(
+            org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMILLIS, ModelType.LONG, false), BACKGROUNDVALIDATIONMINUTES_REMOVE(
+            org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATIONMINUTES_REMOVE, ModelType.LONG, false), BACKGROUNDVALIDATION(
             org.jboss.as.connector.pool.Constants.BACKGROUNDVALIDATION, ModelType.BOOLEAN, false), USE_FAST_FAIL(
-            org.jboss.as.connector.pool.Constants.USE_FAST_FAIL, ModelType.BOOLEAN, false), VALIDATEONMATCH(
+            org.jboss.as.connector.pool.Constants.USE_FAST_FAIL, ModelType.BOOLEAN, false), USE_FAST_FAIL_REMOVE(
+            org.jboss.as.connector.pool.Constants.USE_FAST_FAIL_REMOVE, ModelType.BOOLEAN, false), VALIDATEONMATCH(
             Constants.VALIDATEONMATCH, ModelType.BOOLEAN, false), SPY(Constants.SPY, ModelType.BOOLEAN, false), USE_CCM(
-            Constants.USE_CCM, ModelType.BOOLEAN, false), XADATASOURCECLASS(Constants.XADATASOURCECLASS, ModelType.STRING, true), INTERLIVING(
-            Constants.INTERLIVING, ModelType.BOOLEAN, false), NOTXSEPARATEPOOL(Constants.NOTXSEPARATEPOOL, ModelType.BOOLEAN,
+            Constants.USE_CCM, ModelType.BOOLEAN, false), XADATASOURCECLASS(Constants.XADATASOURCECLASS, ModelType.STRING, true), INTERLEAVING(
+            Constants.INTERLEAVING, ModelType.BOOLEAN, false), NOTXSEPARATEPOOL(Constants.NOTXSEPARATEPOOL, ModelType.BOOLEAN,
             false), PAD_XID(Constants.PAD_XID, ModelType.BOOLEAN, false), SAME_RM_OVERRIDE(Constants.SAME_RM_OVERRIDE,
-            ModelType.BOOLEAN, false), WRAP_XA_DATASOURCE(Constants.WRAP_XA_DATASOURCE, ModelType.BOOLEAN, false), XA_RESOURCE_TIMEOUT(
+            ModelType.BOOLEAN, false), WRAP_XA_RESOURCE(Constants.WRAP_XA_RESOURCE, ModelType.BOOLEAN, true), XA_RESOURCE_TIMEOUT(
             Constants.XA_RESOURCE_TIMEOUT, ModelType.INT, false), REAUTHPLUGIN_CLASSNAME(Constants.REAUTHPLUGIN_CLASSNAME,
             ModelType.STRING, false), REAUTHPLUGIN_PROPERTIES(Constants.REAUTHPLUGIN_PROPERTIES, ModelType.OBJECT, false), RECOVERY_USERNAME(
             Constants.RECOVERY_USERNAME, ModelType.STRING, false), RECOVERY_PASSWORD(Constants.RECOVERY_PASSWORD,
             ModelType.STRING, false), RECOVERY_SECURITY_DOMAIN(Constants.RECOVERY_SECURITY_DOMAIN, ModelType.STRING, false), RECOVERLUGIN_CLASSNAME(
             Constants.RECOVERLUGIN_CLASSNAME, ModelType.STRING, false), RECOVERLUGIN_PROPERTIES(
             Constants.RECOVERLUGIN_PROPERTIES, ModelType.OBJECT, false), NO_RECOVERY(Constants.NO_RECOVERY, ModelType.BOOLEAN,
-            false);
+            false), XADATASOURCE_PROPERTIES(Constants.XADATASOURCEPROPERTIES, ModelType.OBJECT, true);
 
     private final String propertyName;
     private final ModelType modelType;

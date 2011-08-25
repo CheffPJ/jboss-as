@@ -23,7 +23,7 @@ package org.jboss.as.ejb3.component.messagedriven;
 
 import org.jboss.as.ee.component.BasicComponentInstance;
 import org.jboss.as.ejb3.component.EJBComponent;
-import org.jboss.as.ejb3.component.EJBComponentCreateService;
+import org.jboss.as.ejb3.component.pool.PoolConfig;
 import org.jboss.as.ejb3.component.pool.PooledComponent;
 import org.jboss.as.ejb3.inflow.JBossMessageEndpointFactory;
 import org.jboss.as.ejb3.inflow.MessageEndpointService;
@@ -33,8 +33,11 @@ import org.jboss.ejb3.pool.Pool;
 import org.jboss.ejb3.pool.StatelessObjectFactory;
 import org.jboss.ejb3.pool.strictmax.StrictMaxPool;
 import org.jboss.invocation.Interceptor;
+import org.jboss.invocation.InterceptorFactoryContext;
+import org.jboss.logging.Logger;
 import org.jboss.msc.service.StopContext;
 
+import javax.ejb.MessageDriven;
 import javax.resource.ResourceException;
 import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.ResourceAdapter;
@@ -45,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
 import static javax.ejb.TransactionAttributeType.REQUIRED;
 import static org.jboss.as.ejb3.component.MethodIntf.BEAN;
 
@@ -52,10 +56,11 @@ import static org.jboss.as.ejb3.component.MethodIntf.BEAN;
  * @author <a href="mailto:cdewolf@redhat.com">Carlo de Wolf</a>
  */
 public class MessageDrivenComponent extends EJBComponent implements MessageDrivenBeanComponent, PooledComponent<MessageDrivenComponentInstance> {
+    private static final Logger logger = Logger.getLogger(MessageDrivenComponent.class);
+
     private final Pool<MessageDrivenComponentInstance> pool;
 
-    // TODO: implement creation of ActivationSpec
-    private final ActivationSpec activationSpec = null;
+    private final ActivationSpec activationSpec;
     private final MessageEndpointFactory endpointFactory;
     private final Class<?> messageListenerInterface;
     private ResourceAdapter resourceAdapter;
@@ -65,7 +70,7 @@ public class MessageDrivenComponent extends EJBComponent implements MessageDrive
      *
      * @param ejbComponentCreateService the component configuration
      */
-    protected MessageDrivenComponent(final EJBComponentCreateService ejbComponentCreateService) {
+    protected MessageDrivenComponent(final MessageDrivenComponentCreateService ejbComponentCreateService, final Class<?> messageListenerInterface, final ActivationSpec activationSpec) {
         super(ejbComponentCreateService);
 
         StatelessObjectFactory<MessageDrivenComponentInstance> factory = new StatelessObjectFactory<MessageDrivenComponentInstance>() {
@@ -80,9 +85,17 @@ public class MessageDrivenComponent extends EJBComponent implements MessageDrive
                 //destroyInstance(obj);
             }
         };
-        this.pool = new StrictMaxPool<MessageDrivenComponentInstance>(factory, 20, 5, TimeUnit.MINUTES);
+        final PoolConfig poolConfig = ejbComponentCreateService.getPoolConfig();
+        if (poolConfig == null) {
+            logger.debug("Pooling is disabled for MDB " + ejbComponentCreateService.getComponentName());
+            this.pool = null;
+        } else {
+            logger.debug("Using pool config " + poolConfig + " to create pool for MDB " + ejbComponentCreateService.getComponentName());
+            this.pool = poolConfig.createPool(factory);
+        }
 
-        this.messageListenerInterface = null; //ejbComponentCreateService.getMessageListenerInterface();
+        this.activationSpec = activationSpec;
+        this.messageListenerInterface = messageListenerInterface;
         final MessageEndpointService<?> service = new MessageEndpointService<Object>() {
             @Override
             public Class<Object> getMessageListenerInterface() {
@@ -91,7 +104,7 @@ public class MessageDrivenComponent extends EJBComponent implements MessageDrive
 
             @Override
             public TransactionManager getTransactionManager() {
-                return getTransactionManager();
+                return MessageDrivenComponent.this.getTransactionManager();
             }
 
             @Override
@@ -104,7 +117,7 @@ public class MessageDrivenComponent extends EJBComponent implements MessageDrive
             public Object obtain(long timeout, TimeUnit unit) {
                 // like this it's a disconnected invocation
 //                return getComponentView(messageListenerInterface).getViewForInstance(null);
-                throw new RuntimeException("NYI");
+                return createViewInstanceProxy(messageListenerInterface, emptyMap());
             }
 
             @Override
@@ -112,11 +125,11 @@ public class MessageDrivenComponent extends EJBComponent implements MessageDrive
                 // do nothing
             }
         };
-        this.endpointFactory = new JBossMessageEndpointFactory(service);
+        this.endpointFactory = new JBossMessageEndpointFactory(getComponentClass().getClassLoader(), service);
     }
 
     @Override
-    protected BasicComponentInstance instantiateComponentInstance(AtomicReference<ManagedReference> instanceReference, Interceptor preDestroyInterceptor, Map<Method, Interceptor> methodInterceptors) {
+    protected BasicComponentInstance instantiateComponentInstance(AtomicReference<ManagedReference> instanceReference, Interceptor preDestroyInterceptor, Map<Method, Interceptor> methodInterceptors, final InterceptorFactoryContext interceptorContext) {
         return new MessageDrivenComponentInstance(this, instanceReference, preDestroyInterceptor, methodInterceptors);
     }
 
@@ -154,6 +167,9 @@ public class MessageDrivenComponent extends EJBComponent implements MessageDrive
 
     @Override
     public void start() {
+        if (resourceAdapter == null)
+            throw new IllegalStateException("No resource-adapter has been specified for " + this);
+
         super.start();
 
         try {

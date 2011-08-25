@@ -155,6 +155,30 @@ class SecuritySubsystemDescriptions {
         }
     };
 
+    static final DescriptionProvider SECURITY_PROPERTIES_DESC = new DescriptionProvider() {
+
+        @Override
+        public ModelNode getModelDescription(Locale locale) {
+            return Descriptions.getProperties(locale);
+        }
+    };
+
+    static final DescriptionProvider SECURITY_PROPERTIES_ADD = new DescriptionProvider() {
+
+        @Override
+        public ModelNode getModelDescription(Locale locale) {
+            return Descriptions.getPropertiesAdd(locale);
+        }
+    };
+
+    static final DescriptionProvider SECURITY_PROPERTIES_REMOVE = new DescriptionProvider() {
+
+        @Override
+        public ModelNode getModelDescription(Locale locale) {
+            return Descriptions.getPropertiesRemove(locale);
+        }
+    };
+
     static final DescriptionProvider LIST_CACHED_PRINCIPALS = new DescriptionProvider() {
 
         @Override
@@ -242,6 +266,14 @@ class SecuritySubsystemDescriptions {
             subsystem.get(CHILDREN, Constants.SECURITY_DOMAIN, MAX_OCCURS).set(Integer.MAX_VALUE);
             subsystem.get(CHILDREN, Constants.SECURITY_DOMAIN, MODEL_DESCRIPTION).setEmptyObject();
 
+            subsystem.get(Constants.VAULT).set(getVault(locale));
+
+            subsystem.get(CHILDREN, Constants.VAULT_OPTION, DESCRIPTION).set(bundle.getString("vault.option"));
+            subsystem.get(CHILDREN, Constants.VAULT_OPTION, REQUIRED).set(false);
+            subsystem.get(CHILDREN, Constants.VAULT_OPTION, MIN_OCCURS).set(0);
+            subsystem.get(CHILDREN, Constants.VAULT_OPTION, MAX_OCCURS).set(Integer.MAX_VALUE);
+            subsystem.get(CHILDREN, Constants.VAULT_OPTION, MODEL_DESCRIPTION).setEmptyObject();
+
             return subsystem;
         }
 
@@ -298,7 +330,17 @@ class SecuritySubsystemDescriptions {
             op.get(REQUEST_PROPERTIES, MAPPING_MANAGER_CLASS_NAME, REQUIRED).set(false);
             op.get(REQUEST_PROPERTIES, MAPPING_MANAGER_CLASS_NAME, DEFAULT).set("default");
 
+            op.get(REQUEST_PROPERTIES, SECURITY_PROPERTIES, DESCRIPTION).set(
+                    bundle.getString("security-properties"));
+            op.get(REQUEST_PROPERTIES, SECURITY_PROPERTIES, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, SECURITY_PROPERTIES, REQUIRED).set(false);
+
             op.get(SECURITY_PROPERTIES).set(getPropertiesAdd(locale));
+
+            op.get(REQUEST_PROPERTIES, Constants.VAULT, DESCRIPTION).set(
+                    bundle.getString("vault"));
+            op.get(REQUEST_PROPERTIES, Constants.VAULT, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, Constants.VAULT, REQUIRED).set(false);
 
             op.get(REPLY_PROPERTIES).setEmptyObject();
 
@@ -342,14 +384,47 @@ class SecuritySubsystemDescriptions {
             op.get(REQUEST_PROPERTIES, CACHE_TYPE, DESCRIPTION).set(bundle.getString("cache-type"));
             op.get(REQUEST_PROPERTIES, CACHE_TYPE, TYPE).set(ModelType.STRING);
             op.get(REQUEST_PROPERTIES, CACHE_TYPE, REQUIRED).set(false);
-            op.get(CHILDREN, AUTHENTICATION).set(getAuthenticationAdd(locale));
+
+            op.get(REQUEST_PROPERTIES, AUTHENTICATION, DESCRIPTION).set(bundle.getString("authentication"));
+            op.get(REQUEST_PROPERTIES, AUTHENTICATION, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, AUTHENTICATION, REQUIRED).set(false);
+
+            op.get(REQUEST_PROPERTIES, AUTHENTICATION_JASPI, DESCRIPTION).set(bundle.getString("authentication-jaspi"));
+            op.get(REQUEST_PROPERTIES, AUTHENTICATION_JASPI, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, AUTHENTICATION_JASPI, REQUIRED).set(false);
+
+            op.get(REQUEST_PROPERTIES, AUTHORIZATION, DESCRIPTION).set(bundle.getString("authorization"));
+            op.get(REQUEST_PROPERTIES, AUTHORIZATION, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, AUTHORIZATION, REQUIRED).set(false);
+
+            op.get(REQUEST_PROPERTIES, ACL, DESCRIPTION).set(bundle.getString("acl"));
+            op.get(REQUEST_PROPERTIES, ACL, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, ACL, REQUIRED).set(false);
+
+            op.get(REQUEST_PROPERTIES, AUDIT, DESCRIPTION).set(bundle.getString("audit"));
+            op.get(REQUEST_PROPERTIES, AUDIT, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, AUDIT, REQUIRED).set(false);
+
+            op.get(REQUEST_PROPERTIES, IDENTITY_TRUST, DESCRIPTION).set(bundle.getString("identity-trust"));
+            op.get(REQUEST_PROPERTIES, IDENTITY_TRUST, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, IDENTITY_TRUST, REQUIRED).set(false);
+
+            op.get(REQUEST_PROPERTIES, MAPPING, DESCRIPTION).set(bundle.getString("mapping"));
+            op.get(REQUEST_PROPERTIES, MAPPING, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, MAPPING, REQUIRED).set(false);
+
+            op.get(REQUEST_PROPERTIES, JSSE, DESCRIPTION).set(bundle.getString("jsse"));
+            op.get(REQUEST_PROPERTIES, JSSE, TYPE).set(ModelType.OBJECT);
+            op.get(REQUEST_PROPERTIES, JSSE, REQUIRED).set(false);
+
+           /* op.get(CHILDREN, AUTHENTICATION).set(getAuthenticationAdd(locale));
             op.get(CHILDREN, AUTHENTICATION_JASPI).set(getAuthenticationJaspiAdd(locale));
             op.get(CHILDREN, AUTHORIZATION).set(getAuthorizationAdd(locale));
             op.get(CHILDREN, ACL).set(getAclAdd(locale));
             op.get(CHILDREN, AUDIT).set(getAuditAdd(locale));
             op.get(CHILDREN, IDENTITY_TRUST).set(getIdentityTrustAdd(locale));
             op.get(CHILDREN, MAPPING).set(getMappingAdd(locale));
-            op.get(CHILDREN, JSSE).set(getJSSEAdd(locale));
+            op.get(CHILDREN, JSSE).set(getJSSEAdd(locale));*/
             return op;
         }
 
@@ -428,6 +503,29 @@ class SecuritySubsystemDescriptions {
             node.get(REQUEST_PROPERTIES, VALUE, TYPE).set(ModelType.STRING);
             node.get(REQUEST_PROPERTIES, VALUE, REQUIRED).set(true);
 
+            return node;
+        }
+
+        static ModelNode getPropertiesRemove(Locale locale) {
+            final ResourceBundle bundle = getResourceBundle(locale);
+
+            final ModelNode op = new ModelNode();
+            op.get(OPERATION_NAME).set(REMOVE);
+            op.get(DESCRIPTION).set(bundle.getString("security-properties.remove"));
+
+            return op;
+        }
+
+        static ModelNode getVault(Locale locale) {
+            final ResourceBundle bundle = getResourceBundle(locale);
+
+            final ModelNode node = new ModelNode();
+            node.get(TYPE).set(ModelType.LIST);
+            node.get(DESCRIPTION).set(bundle.getString("vault"));
+            node.get(REQUIRED).set(false);
+            node.get(ATTRIBUTES, CODE, DESCRIPTION).set(bundle.getString("vault.code"));
+            node.get(ATTRIBUTES, CODE, TYPE).set(ModelType.STRING);
+            node.get(ATTRIBUTES, NAME, REQUIRED).set(false);
             return node;
         }
 

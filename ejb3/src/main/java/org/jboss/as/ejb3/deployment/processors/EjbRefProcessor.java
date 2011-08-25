@@ -22,13 +22,13 @@
 
 package org.jboss.as.ejb3.deployment.processors;
 
-import org.jboss.as.ee.component.AbstractDeploymentDescriptorBindingsProcessor;
 import org.jboss.as.ee.component.BindingConfiguration;
 import org.jboss.as.ee.component.ComponentDescription;
 import org.jboss.as.ee.component.DeploymentDescriptorEnvironment;
 import org.jboss.as.ee.component.EEApplicationClasses;
 import org.jboss.as.ee.component.EEModuleDescription;
 import org.jboss.as.ee.component.LookupInjectionSource;
+import org.jboss.as.ee.component.deployers.AbstractDeploymentDescriptorBindingsProcessor;
 import org.jboss.as.ejb3.component.MethodIntf;
 import org.jboss.as.ejb3.deployment.EjbDeploymentAttachmentKeys;
 import org.jboss.as.server.deployment.DeploymentUnit;
@@ -51,7 +51,6 @@ public class EjbRefProcessor extends AbstractDeploymentDescriptorBindingsProcess
     /**
      * Resolves ejb-ref and ejb-local-ref elements
      *
-     *
      * @param deploymentUnit
      * @param environment               The environment to resolve the elements for
      * @param classLoader               The deployment class loader
@@ -73,7 +72,7 @@ public class EjbRefProcessor extends AbstractDeploymentDescriptorBindingsProcess
 
                 if (!isEmpty(localInterface)) {
                     try {
-                        classLoader.loadClass(localInterface);
+                        localInterfaceType = classLoader.loadClass(localInterface);
                     } catch (ClassNotFoundException e) {
                         throw new DeploymentUnitProcessingException("Could not load local interface type " + localInterface, e);
                     }
@@ -105,7 +104,7 @@ public class EjbRefProcessor extends AbstractDeploymentDescriptorBindingsProcess
                 } else {
                     bindingConfiguration = new BindingConfiguration(name, ejbInjectionSource = new EjbInjectionSource(localInterfaceType.getName()));
                 }
-                if(ejbInjectionSource != null) {
+                if (ejbInjectionSource != null) {
                     deploymentUnit.addToAttachmentList(EjbDeploymentAttachmentKeys.EJB_INJECTIONS, ejbInjectionSource);
                 }
                 bindingDescriptions.add(bindingConfiguration);

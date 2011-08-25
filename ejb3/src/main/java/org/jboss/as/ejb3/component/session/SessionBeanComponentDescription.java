@@ -34,12 +34,15 @@ import org.jboss.as.ejb3.component.EJBComponentDescription;
 import org.jboss.as.ejb3.component.EJBViewDescription;
 import org.jboss.as.ejb3.component.MethodIntf;
 import org.jboss.as.ejb3.deployment.EjbJarDescription;
+import org.jboss.as.ejb3.timerservice.AutoTimer;
 import org.jboss.as.ejb3.tx.CMTTxInterceptorFactory;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
 import org.jboss.invocation.ImmediateInterceptorFactory;
 import org.jboss.invocation.proxy.MethodIdentifier;
 import org.jboss.logging.Logger;
+import org.jboss.metadata.ejb.spec.MessageDrivenBeanMetaData;
+import org.jboss.metadata.ejb.spec.SessionBeanMetaData;
 import org.jboss.msc.service.ServiceName;
 
 import javax.ejb.AccessTimeout;
@@ -49,13 +52,16 @@ import javax.ejb.SessionBean;
 import javax.ejb.TransactionManagementType;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Jaikiran Pai
@@ -88,12 +94,12 @@ public abstract class SessionBeanComponentDescription extends EJBComponentDescri
     /**
      * The {@link LockType} applicable for a specific bean methods.
      */
-    private Map<MethodIdentifier, LockType> methodLockTypes = new ConcurrentHashMap<MethodIdentifier, LockType>();
+    private Map<MethodIdentifier, LockType> methodLockTypes = new HashMap<MethodIdentifier, LockType>();
 
     /**
      * The {@link AccessTimeout} applicable for a specific bean methods.
      */
-    private Map<MethodIdentifier, AccessTimeout> methodAccessTimeouts = new ConcurrentHashMap<MethodIdentifier, AccessTimeout>();
+    private Map<MethodIdentifier, AccessTimeout> methodAccessTimeouts = new HashMap<MethodIdentifier, AccessTimeout>();
 
     /**
      * Methods on the component marked as @Asynchronous
@@ -105,11 +111,20 @@ public abstract class SessionBeanComponentDescription extends EJBComponentDescri
      */
     private final Set<String> asynchronousViews = new HashSet<String>();
 
-
     /**
      * mapped-name of the session bean
      */
     private String mappedName;
+
+    /**
+     * @Schedule methods
+     */
+    private final Map<Method, List<AutoTimer>> scheduleMethods = new IdentityHashMap<Method, List<AutoTimer>>();
+
+    /**
+     * The actual timeout method
+     */
+    private Method timeoutMethod;
 
     public enum SessionBeanType {
         STATELESS,
@@ -202,18 +217,6 @@ public abstract class SessionBeanComponentDescription extends EJBComponentDescri
         }
     }
 
-    private EJBViewDescription registerView(final String viewClassName, final MethodIntf viewType) {
-        // setup the ViewDescription
-        final EJBViewDescription viewDescription = new EJBViewDescription(this, viewClassName, viewType);
-        getViews().add(viewDescription);
-        // setup server side view interceptors
-        setupViewInterceptors(viewDescription);
-        // setup client side view interceptors
-        setupClientViewInterceptors(viewDescription);
-        // return created view
-        return viewDescription;
-    }
-
     public boolean hasNoInterfaceView() {
         return this.noInterfaceViewPresent;
     }
@@ -295,30 +298,8 @@ public abstract class SessionBeanComponentDescription extends EJBComponentDescri
         return this.concurrencyManagementType;
     }
 
-    /**
-     * Marks the bean for bean managed concurrency.
-     *
-     * @throws IllegalStateException If the bean has already been marked for a different concurrency management type
-     */
-    public void beanManagedConcurrency() {
-        if (this.concurrencyManagementType != null && this.concurrencyManagementType != ConcurrencyManagementType.BEAN) {
-            throw new IllegalStateException(this.getEJBName() + " bean has been marked for " + this.concurrencyManagementType + " cannot change it now!");
-        }
-        this.concurrencyManagementType = ConcurrencyManagementType.BEAN;
-    }
-
-
-    /**
-     * Marks this bean for container managed concurrency.
-     *
-     * @throws IllegalStateException If the bean has already been marked for a different concurrency management type
-     */
-    public void containerManagedConcurrency() {
-        if (this.concurrencyManagementType != null && this.concurrencyManagementType != ConcurrencyManagementType.CONTAINER) {
-            throw new IllegalStateException(this.getEJBName() + " bean has been marked for " + this.concurrencyManagementType + " cannot change it now!");
-        }
-        this.concurrencyManagementType = ConcurrencyManagementType.CONTAINER;
-
+    public void setConcurrencyManagementType(final ConcurrencyManagementType concurrencyManagementType) {
+        this.concurrencyManagementType = concurrencyManagementType;
     }
 
     /**
@@ -443,6 +424,32 @@ public abstract class SessionBeanComponentDescription extends EJBComponentDescri
     @Override
     public boolean isStateless() {
         return getSessionBeanType() == SessionBeanType.STATELESS;
+    }
+
+    public Method getTimeoutMethod() {
+        return timeoutMethod;
+    }
+
+    public void setTimeoutMethod(final Method timeoutMethod) {
+        this.timeoutMethod = timeoutMethod;
+    }
+
+    public Map<Method, List<AutoTimer>> getScheduleMethods() {
+        return Collections.unmodifiableMap(scheduleMethods);
+    }
+
+    public void addScheduleMethod(final Method method, final AutoTimer timer) {
+        List<AutoTimer> schedules = scheduleMethods.get(method);
+        if(schedules == null) {
+            scheduleMethods.put(method, schedules = new ArrayList<AutoTimer>(1));
+        }
+        schedules.add(timer);
+    }
+
+
+    @Override
+    public SessionBeanMetaData getDescriptorData() {
+        return (SessionBeanMetaData) super.getDescriptorData();
     }
 
 }

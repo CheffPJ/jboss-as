@@ -31,6 +31,7 @@ import org.jboss.as.controller.OperationFailedException;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.as.controller.ServiceVerificationHandler;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.OP_ADDR;
+import static org.jboss.as.logging.CommonAttributes.APPEND;
 import static org.jboss.as.logging.CommonAttributes.AUTOFLUSH;
 import static org.jboss.as.logging.CommonAttributes.ENCODING;
 import static org.jboss.as.logging.CommonAttributes.FILE;
@@ -53,12 +54,15 @@ class PeriodicRotatingFileHandlerAdd extends AbstractAddStepHandler {
 
     static final PeriodicRotatingFileHandlerAdd INSTANCE = new PeriodicRotatingFileHandlerAdd();
 
-    protected void populateModel(ModelNode operation, ModelNode model) {
+    @Override
+    protected void populateModel(ModelNode operation, ModelNode model) throws OperationFailedException {
+        LoggingValidators.validate(operation);
+        if (operation.hasDefined(APPEND)) model.get(APPEND).set(operation.get(APPEND));
         model.get(AUTOFLUSH).set(operation.get(AUTOFLUSH));
         model.get(ENCODING).set(operation.get(ENCODING));
         model.get(FORMATTER).set(operation.get(FORMATTER));
         model.get(LEVEL).set(operation.get(LEVEL));
-        model.get(FILE).set(operation.get(FILE));
+        if (operation.hasDefined(LEVEL)) model.get(FILE).set(operation.get(FILE));
         model.get(SUFFIX).set(operation.get(SUFFIX));
     }
 
@@ -69,6 +73,7 @@ class PeriodicRotatingFileHandlerAdd extends AbstractAddStepHandler {
         try {
             final PeriodicRotatingFileHandlerService service = new PeriodicRotatingFileHandlerService();
             final ServiceBuilder<Handler> serviceBuilder = serviceTarget.addService(LogServices.handlerName(name), service);
+            if (operation.hasDefined(APPEND)) service.setAppend(operation.get(APPEND).asBoolean());
             if (operation.hasDefined(FILE)) {
                 final HandlerFileService fileService = new HandlerFileService(operation.get(FILE, PATH).asString());
                 final ServiceBuilder<?> fileBuilder = serviceTarget.addService(LogServices.handlerFileName(name), fileService);
@@ -78,21 +83,17 @@ class PeriodicRotatingFileHandlerAdd extends AbstractAddStepHandler {
                 fileBuilder.setInitialMode(ServiceController.Mode.ACTIVE).install();
                 serviceBuilder.addDependency(LogServices.handlerFileName(name), String.class, service.getFileNameInjector());
             }
-            service.setLevel(Level.parse(operation.get(LEVEL).asString()));
+            if (operation.hasDefined(LEVEL)) service.setLevel(Level.parse(operation.get(LEVEL).asString()));
             final Boolean autoFlush = operation.get(AUTOFLUSH).asBoolean();
             if (autoFlush != null) service.setAutoflush(autoFlush.booleanValue());
             if (operation.hasDefined(SUFFIX)) service.setSuffix(operation.get(SUFFIX).asString());
             if (operation.hasDefined(ENCODING)) service.setEncoding(operation.get(ENCODING).asString());
-            if (operation.hasDefined(FORMATTER)) service.setFormatterSpec(createFormatterSpec(operation));
+            service.setFormatterSpec(AbstractFormatterSpec.Factory.create(operation));
             serviceBuilder.addListener(verificationHandler);
             serviceBuilder.setInitialMode(ServiceController.Mode.ACTIVE);
             newControllers.add(serviceBuilder.install());
         } catch (Throwable t) {
             throw new OperationFailedException(new ModelNode().set(t.getLocalizedMessage()));
         }
-    }
-
-    static AbstractFormatterSpec createFormatterSpec(final ModelNode operation) {
-        return new PatternFormatterSpec(operation.get(FORMATTER).asString());
     }
 }

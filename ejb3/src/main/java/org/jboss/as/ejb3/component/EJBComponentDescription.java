@@ -36,15 +36,18 @@ import org.jboss.as.ejb3.deployment.EjbDeploymentAttachmentKeys;
 import org.jboss.as.ejb3.deployment.EjbJarConfiguration;
 import org.jboss.as.ejb3.deployment.EjbJarDescription;
 import org.jboss.as.ejb3.security.EJBSecurityViewConfigurator;
+import org.jboss.as.ejb3.timerservice.NonFunctionalTimerService;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
 import org.jboss.invocation.ImmediateInterceptorFactory;
 import org.jboss.invocation.Interceptor;
 import org.jboss.invocation.InterceptorContext;
+import org.jboss.metadata.ejb.spec.EnterpriseBeanMetaData;
 import org.jboss.msc.service.ServiceBuilder;
 import org.jboss.msc.service.ServiceName;
 
+import javax.ejb.TimerService;
 import javax.ejb.TransactionAttributeType;
 import javax.ejb.TransactionManagementType;
 import java.lang.reflect.Method;
@@ -72,6 +75,11 @@ public abstract class EJBComponentDescription extends ComponentDescription {
     private TransactionManagementType transactionManagementType = TransactionManagementType.CONTAINER;
 
     private final Map<MethodIntf, TransactionAttributeType> txPerViewStyle1 = new HashMap<MethodIntf, TransactionAttributeType>();
+
+    /**
+     * The deployment descriptor information for this bean, if any
+     */
+    private EnterpriseBeanMetaData descriptorData;
 
     /**
      * The security-domain, if any, for this bean
@@ -139,6 +147,11 @@ public abstract class EJBComponentDescription extends ComponentDescription {
     private final List<String> aroundInvokeDDMethods = new ArrayList<String>(0);
     private final List<String> preDestroyDDMethods = new ArrayList<String>(0);
     private final List<String> postConstructDDMethods = new ArrayList<String>(0);
+
+    /**
+     * TODO: this should not be part of the description
+     */
+    private TimerService timerService = NonFunctionalTimerService.INSTANCE;
 
 
     private final PopulatingMap<MethodIntf, Map<String, TransactionAttributeType>> txPerViewStyle2 = new PopulatingMap<MethodIntf, Map<String, TransactionAttributeType>>() {
@@ -330,7 +343,7 @@ public abstract class EJBComponentDescription extends ComponentDescription {
                 } catch (NoSuchMethodException nsme) {
                     throw new DeploymentUnitProcessingException(nsme);
                 }
-                Method[] methods = configuration.getProxyFactory().getCachedMethods();
+                List<Method> methods = configuration.getProxyFactory().getCachedMethods();
                 for (Method method : methods) {
                     if (TO_STRING_METHOD.equals(method)) {
                         configuration.addClientInterceptor(method, new ImmediateInterceptorFactory(new ToStringMethodInterceptor(EJBComponentDescription.this.getComponentName())), InterceptorOrder.Client.TO_STRING);
@@ -609,6 +622,18 @@ public abstract class EJBComponentDescription extends ComponentDescription {
         roleLinks.add(toRole);
     }
 
+    protected EJBViewDescription registerView(final String viewClassName, final MethodIntf viewType) {
+        // setup the ViewDescription
+        final EJBViewDescription viewDescription = new EJBViewDescription(this, viewClassName, viewType);
+        getViews().add(viewDescription);
+        // setup server side view interceptors
+        setupViewInterceptors(viewDescription);
+        // setup client side view interceptors
+        setupClientViewInterceptors(viewDescription);
+        // return created view
+        return viewDescription;
+    }
+
     public Map<String, Collection<String>> getSecurityRoleLinks() {
         return Collections.unmodifiableMap(this.securityRoleLinks);
     }
@@ -720,6 +745,22 @@ public abstract class EJBComponentDescription extends ComponentDescription {
 
     public List<String> getPreDestroyDDMethods() {
         return preDestroyDDMethods;
+    }
+
+    public TimerService getTimerService() {
+        return timerService;
+    }
+
+    public void setTimerService(final TimerService timerService) {
+        this.timerService = timerService;
+    }
+
+    public EnterpriseBeanMetaData getDescriptorData() {
+        return descriptorData;
+    }
+
+    public void setDescriptorData(final EnterpriseBeanMetaData descriptorData) {
+        this.descriptorData = descriptorData;
     }
 
     @Override

@@ -21,10 +21,6 @@
  */
 package org.jboss.as.remoting;
 
-import javax.security.auth.callback.CallbackHandler;
-
-import java.security.Security;
-
 import org.jboss.as.domain.management.SecurityRealm;
 import org.jboss.msc.service.Service;
 import org.jboss.msc.service.StartContext;
@@ -32,6 +28,12 @@ import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
 import org.jboss.sasl.JBossSaslProvider;
+
+import javax.security.auth.callback.CallbackHandler;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.Provider;
+import java.security.Security;
 
 /**
  * The service to make the RealmAuthenticationProvider available.
@@ -43,11 +45,19 @@ class RealmAuthenticationProviderService implements Service<RealmAuthenticationP
     private final InjectedValue<SecurityRealm> securityRealmInjectedValue = new InjectedValue<SecurityRealm>();
     private final InjectedValue<CallbackHandler> serverCallbackValue = new InjectedValue<CallbackHandler>();
 
-    private RealmAuthenticationProvider realmAuthenticationProvider = null;
+    private volatile RealmAuthenticationProvider realmAuthenticationProvider = null;
 
     public void start(StartContext startContext) throws StartException {
-        // TODO - Find a better home for this.
-        Security.addProvider(new JBossSaslProvider());
+        AccessController.doPrivileged(new PrivilegedAction<Object>() {
+            public Object run() {
+                Provider saslProvider = new JBossSaslProvider();
+                if (Security.getProvider(saslProvider.getName()) == null) {
+                    Security.insertProviderAt(saslProvider, 1);
+                }
+                return null;
+            }
+        });
+
         realmAuthenticationProvider = new RealmAuthenticationProvider(securityRealmInjectedValue.getOptionalValue(), serverCallbackValue.getOptionalValue());
     }
 

@@ -22,16 +22,20 @@
 package org.jboss.as.cli;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.net.UnknownHostException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.Security;
 import java.util.Collection;
 import java.util.HashMap;
@@ -88,15 +92,15 @@ import org.jboss.as.cli.handlers.jms.JmsQueueAddHandler;
 import org.jboss.as.cli.handlers.jms.JmsQueueRemoveHandler;
 import org.jboss.as.cli.handlers.jms.JmsTopicAddHandler;
 import org.jboss.as.cli.handlers.jms.JmsTopicRemoveHandler;
-import org.jboss.as.cli.impl.DefaultParsedArguments;
 import org.jboss.as.cli.operation.OperationCandidatesProvider;
 import org.jboss.as.cli.operation.OperationFormatException;
 import org.jboss.as.cli.operation.OperationRequestAddress;
-import org.jboss.as.cli.operation.OperationRequestParser;
+import org.jboss.as.cli.operation.CommandLineParser;
+import org.jboss.as.cli.operation.ParsedCommandLine;
 import org.jboss.as.cli.operation.PrefixFormatter;
+import org.jboss.as.cli.operation.impl.DefaultCallbackHandler;
 import org.jboss.as.cli.operation.impl.DefaultOperationCandidatesProvider;
 import org.jboss.as.cli.operation.impl.DefaultOperationRequestAddress;
-import org.jboss.as.cli.operation.impl.DefaultOperationRequestBuilder;
 import org.jboss.as.cli.operation.impl.DefaultOperationRequestParser;
 import org.jboss.as.cli.operation.impl.DefaultPrefixFormatter;
 import org.jboss.as.controller.client.ModelControllerClient;
@@ -160,7 +164,11 @@ public class CommandLineMain {
 
     public static void main(String[] args) throws Exception {
         try {
-            Security.addProvider(new JBossSaslProvider());
+            AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                public Object run() {
+                    return Security.insertProviderAt(new JBossSaslProvider(), 1);
+                }
+            });
 
             String argError = null;
             String[] commands = null;
@@ -322,6 +330,8 @@ public class CommandLineMain {
                         processLine(cmdCtx, line.trim());
                     }
                 }
+            } catch(Throwable t) {
+                t.printStackTrace();
             } finally {
                 cmdCtx.disconnectController();
             }
@@ -356,6 +366,8 @@ public class CommandLineMain {
             for (int i = 0; i < commands.length && !cmdCtx.terminate; ++i) {
                 processLine(cmdCtx, commands[i]);
             }
+        } catch(Throwable t) {
+            t.printStackTrace();
         } finally {
             if (!cmdCtx.terminate) {
                 cmdCtx.terminateSession();
@@ -393,7 +405,7 @@ public class CommandLineMain {
                 processLine(cmdCtx, line.trim());
                 line = reader.readLine();
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             cmdCtx.printLine("Failed to process file '" + file.getAbsolutePath() + "'");
             e.printStackTrace();
         } finally {
@@ -413,41 +425,44 @@ public class CommandLineMain {
             return; // ignore comments
         }
         if(isOperation(line)) {
-            cmdCtx.setArgs(null, line, null);
+
+            ModelNode request;
+            try {
+                cmdCtx.resetArgs(line);
+                request = cmdCtx.parsedCmd.toOperationRequest();
+            } catch (CommandFormatException e) {
+                cmdCtx.printLine(e.getLocalizedMessage());
+                return;
+            }
+
             if(cmdCtx.isBatchMode()) {
-                DefaultOperationRequestBuilder builder = new DefaultOperationRequestBuilder(cmdCtx.getPrefix());
-                try {
-                    cmdCtx.getOperationRequestParser().parse(line, builder);
-                    ModelNode request = builder.buildRequest();
-                    StringBuilder op = new StringBuilder();
-                    op.append(cmdCtx.getPrefixFormatter().format(builder.getAddress()));
-                    op.append(line.substring(line.indexOf(':')));
-                    DefaultBatchedCommand batchedCmd = new DefaultBatchedCommand(op.toString(), request);
-                    Batch batch = cmdCtx.getBatchManager().getActiveBatch();
-                    batch.add(batchedCmd);
-                    cmdCtx.printLine("#" + batch.size() + " " + batchedCmd.getCommand());
-                } catch (CommandFormatException e) {
-                    cmdCtx.printLine(e.getLocalizedMessage());
-                }
+                StringBuilder op = new StringBuilder();
+                op.append(cmdCtx.getPrefixFormatter().format(cmdCtx.parsedCmd.getAddress()));
+                op.append(line.substring(line.indexOf(':')));
+                DefaultBatchedCommand batchedCmd = new DefaultBatchedCommand(op.toString(), request);
+                Batch batch = cmdCtx.getBatchManager().getActiveBatch();
+                batch.add(batchedCmd);
+                cmdCtx.printLine("#" + batch.size() + " " + batchedCmd.getCommand());
             } else {
-                cmdCtx.operationHandler.handle(cmdCtx);
+                cmdCtx.set("OP_REQ", request);
+                try {
+                    cmdCtx.operationHandler.handle(cmdCtx);
+                } finally {
+                    cmdCtx.set("OP_REQ", null);
+                }
             }
 
         } else {
-            String cmd = line;
-            String cmdArgs = null;
-            for (int i = 0; i < cmd.length(); ++i) {
-                if (Character.isWhitespace(cmd.charAt(i))) {
-                    cmdArgs = cmd.substring(i + 1).trim();
-                    cmd = cmd.substring(0, i);
-                    break;
-                }
+            try {
+                cmdCtx.resetArgs(line);
+            } catch (CommandFormatException e1) {
+                cmdCtx.printLine(e1.getLocalizedMessage());
+                return;
             }
 
-            CommandHandler handler = cmdRegistry.getCommandHandler(cmd.toLowerCase());
+            final String cmdName = cmdCtx.parsedCmd.getOperationName();
+            CommandHandler handler = cmdRegistry.getCommandHandler(cmdName.toLowerCase());
             if(handler != null) {
-                cmdCtx.setArgs(cmd, cmdArgs, handler);
-
                 if(cmdCtx.isBatchMode() && handler.isBatchMode()) {
                     if(!(handler instanceof OperationCommand)) {
                         cmdCtx.printLine("The command is not allowed in a batch.");
@@ -470,7 +485,11 @@ public class CommandLineMain {
                     }
                 }
 
-                cmdCtx.setArgs(null, null, null);
+                // TODO this doesn't make sense
+                try {
+                    cmdCtx.resetArgs(null);
+                } catch (CommandFormatException e) {
+                }
             } else {
                 cmdCtx.printLine("Unexpected command '" + line
                         + "'. Type 'help' for the list of supported commands.");
@@ -529,10 +548,10 @@ public class CommandLineMain {
         /** whether the session should be terminated*/
         private boolean terminate;
 
-        /** current command */
-        private String cmd;
+        /** current command line */
+        private String cmdLine;
         /** parsed command arguments */
-        private DefaultParsedArguments parsedArgs = new DefaultParsedArguments();
+        private DefaultCallbackHandler parsedCmd = new DefaultCallbackHandler();
 
         /** domain or standalone mode*/
         private boolean domainMode;
@@ -548,8 +567,6 @@ public class CommandLineMain {
         private int controllerPort = -1;
         /** various key/value pairs */
         private Map<String, Object> map = new HashMap<String, Object>();
-        /** operation request parser */
-        private final OperationRequestParser parser = new DefaultOperationRequestParser();
         /** operation request address prefix */
         private final OperationRequestAddress prefix = new DefaultOperationRequestAddress();
         /** the prefix formatter */
@@ -563,9 +580,12 @@ public class CommandLineMain {
         /** the default command completer */
         private final CommandCompleter cmdCompleter;
 
+        /** output target */
+        private BufferedWriter outputTarget;
+
         /**
-* Non-interactive mode
-*/
+         * Non-interactive mode
+         */
         private CommandContextImpl() {
             this.console = null;
             this.history = null;
@@ -575,8 +595,8 @@ public class CommandLineMain {
         }
 
         /**
-* Interactive mode
-*/
+         * Interactive mode
+         */
         private CommandContextImpl(jline.ConsoleReader console) {
             this.console = console;
 
@@ -599,7 +619,15 @@ public class CommandLineMain {
 
         @Override
         public String getArgumentsString() {
-            return parsedArgs.getArgumentsString();
+            if(cmdLine != null && parsedCmd.getOperationName() != null) {
+                int cmdNameLength = parsedCmd.getOperationName().length();
+                if(cmdLine.length() == cmdNameLength) {
+                    return null;
+                } else {
+                    return cmdLine.substring(cmdNameLength + 1);
+                }
+            }
+            return null;
         }
 
         @Override
@@ -609,6 +637,17 @@ public class CommandLineMain {
 
         @Override
         public void printLine(String message) {
+            if(outputTarget != null) {
+                try {
+                    outputTarget.append(message);
+                    outputTarget.newLine();
+                    outputTarget.flush();
+                } catch (IOException e) {
+                    System.err.println("Failed to print '" + message + "' to the output target: " + e.getLocalizedMessage());
+                }
+                return;
+            }
+
             if (console != null) {
                 try {
                     console.printString(message);
@@ -623,6 +662,18 @@ public class CommandLineMain {
 
         @Override
         public void printColumns(Collection<String> col) {
+            if(outputTarget != null) {
+                try {
+                    for(String item : col) {
+                        outputTarget.append(item);
+                        outputTarget.newLine();
+                    }
+                } catch (IOException e) {
+                    System.err.println("Failed to print columns '" + col + "' to the console: " + e.getLocalizedMessage());
+                }
+                return;
+            }
+
             if (console != null) {
                 try {
                     console.printColumns(col);
@@ -652,8 +703,8 @@ public class CommandLineMain {
         }
 
         @Override
-        public OperationRequestParser getOperationRequestParser() {
-            return parser;
+        public CommandLineParser getCommandLineParser() {
+            return DefaultOperationRequestParser.INSTANCE;
         }
 
         @Override
@@ -673,6 +724,7 @@ public class CommandLineMain {
         }
 
         private void connectController(String host, int port, boolean loggingEnabled) {
+
             if(host == null) {
                 host = defaultControllerHost;
             }
@@ -700,6 +752,7 @@ public class CommandLineMain {
                             + host + ":" + port);
                 } else {
                     printLine("The controller is not available at " + host + ":" + port);
+                    disconnectController(false);
                 }
             } catch (UnknownHostException e) {
                 printLine("Failed to resolve host '" + host + "': " + e.getLocalizedMessage());
@@ -803,19 +856,17 @@ public class CommandLineMain {
             return defaultControllerPort;
         }
 
-        private void setArgs(String cmd, String args, CommandHandler handler) {
-            this.cmd = cmd;
-            parsedArgs.reset(args, handler);
+        private void resetArgs(String cmdLine) throws CommandFormatException {
+            if(cmdLine != null) {
+                parsedCmd.parse(prefix, cmdLine);
+                setOutputTarget(parsedCmd.getOutputTarget());
+            }
+            this.cmdLine = cmdLine;
         }
 
         @Override
         public boolean isBatchMode() {
             return batchManager.isBatchActive();
-        }
-
-        @Override
-        public String getCommand() {
-            return cmd;
         }
 
         @Override
@@ -830,23 +881,22 @@ public class CommandLineMain {
                 throw new IllegalArgumentException("Null command line.");
             }
 
-            final DefaultParsedArguments originalParsedArguments = this.parsedArgs;
+            final DefaultCallbackHandler originalParsedArguments = this.parsedCmd;
             if(isOperation(line)) {
                 try {
-                    this.parsedArgs = new DefaultParsedArguments();
-                    setArgs(null, line, null);
-                    DefaultOperationRequestBuilder builder = new DefaultOperationRequestBuilder(getPrefix());
-                    parser.parse(line, builder);
-                    ModelNode request = builder.buildRequest();
+                    this.parsedCmd = new DefaultCallbackHandler();
+                    resetArgs(line);
+                    ModelNode request = this.parsedCmd.toOperationRequest();
                     StringBuilder op = new StringBuilder();
-                    op.append(prefixFormatter.format(builder.getAddress()));
+                    op.append(prefixFormatter.format(parsedCmd.getAddress()));
                     op.append(line.substring(line.indexOf(':')));
                     return new DefaultBatchedCommand(op.toString(), request);
                 } finally {
-                    this.parsedArgs = originalParsedArguments;
+                    this.parsedCmd = originalParsedArguments;
                 }
             }
 
+            //TODO this could be just parsed
             String cmd = line;
             String cmdArgs = null;
             for (int i = 0; i < cmd.length(); ++i) {
@@ -866,12 +916,12 @@ public class CommandLineMain {
             }
 
             try {
-                this.parsedArgs = new DefaultParsedArguments();
-                setArgs(cmd, cmdArgs, handler);
+                this.parsedCmd = new DefaultCallbackHandler();
+                resetArgs(cmdArgs);
                 ModelNode request = ((OperationCommand)handler).buildRequest(this);
                 return new DefaultBatchedCommand(line, request);
             } finally {
-                this.parsedArgs = originalParsedArguments;
+                this.parsedCmd = originalParsedArguments;
             }
         }
 
@@ -881,13 +931,28 @@ public class CommandLineMain {
         }
 
         @Override
-        public ParsedArguments getParsedArguments() {
-            return parsedArgs;
+        public ParsedCommandLine getParsedCommandLine() {
+            return parsedCmd;
         }
 
         @Override
         public boolean isDomainMode() {
             return domainMode;
+        }
+
+        protected void setOutputTarget(String filePath) {
+            if(filePath == null) {
+                this.outputTarget = null;
+                return;
+            }
+            FileWriter writer;
+            try {
+                writer = new FileWriter(filePath, false);
+            } catch (IOException e) {
+                printLine(e.getLocalizedMessage());
+                return;
+            }
+            this.outputTarget = new BufferedWriter(writer);
         }
 
         private class AuthenticationCallbackHandler implements CallbackHandler {

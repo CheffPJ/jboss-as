@@ -41,13 +41,14 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-final class ViewService implements Service<ComponentView> {
+public final class ViewService implements Service<ComponentView> {
     private static final Logger logger = Logger.getLogger(ViewService.class);
     private final InjectedValue<Component> componentInjector = new InjectedValue<Component>();
     private final Map<Method, InterceptorFactory> viewInterceptorFactories;
@@ -68,12 +69,12 @@ final class ViewService implements Service<ComponentView> {
         }
     });
 
-    ViewService(final ViewConfiguration viewConfiguration) {
+    public ViewService(final ViewConfiguration viewConfiguration) {
         viewClass = viewConfiguration.getViewClass();
         final ProxyFactory<?> proxyFactory = viewConfiguration.getProxyFactory();
         this.proxyFactory = proxyFactory;
-        final Method[] methods = proxyFactory.getCachedMethods();
-        final int methodCount = methods.length;
+        final List<Method> methods = proxyFactory.getCachedMethods();
+        final int methodCount = methods.size();
         viewPostConstruct = Interceptors.getChainedInterceptorFactory(viewConfiguration.getViewPostConstructInterceptors());
         viewPreDestroy = Interceptors.getChainedInterceptorFactory(viewConfiguration.getViewPreDestroyInterceptors());
         clientPostConstruct = Interceptors.getChainedInterceptorFactory(viewConfiguration.getClientPostConstructInterceptors());

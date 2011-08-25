@@ -25,12 +25,29 @@ package org.jboss.as.ejb3.component.messagedriven;
 import org.jboss.as.ee.component.BasicComponent;
 import org.jboss.as.ee.component.ComponentConfiguration;
 import org.jboss.as.ejb3.component.EJBComponentCreateService;
+import org.jboss.as.ejb3.component.pool.PoolConfig;
 import org.jboss.as.ejb3.deployment.EjbJarConfiguration;
+import org.jboss.as.ejb3.inflow.EndpointDeployer;
+import org.jboss.msc.service.ServiceController;
+import org.jboss.msc.service.ServiceName;
+import org.jboss.msc.service.ServiceRegistry;
+import org.jboss.msc.value.InjectedValue;
+
+import javax.resource.ResourceException;
+import javax.resource.spi.ActivationSpec;
+import javax.resource.spi.ResourceAdapter;
+import java.util.Properties;
 
 /**
  * @author Stuart Douglas
  */
 public class MessageDrivenComponentCreateService extends EJBComponentCreateService {
+
+    private final Class<?> messageListenerInterface;
+    private String resourceAdapterName;
+    private final Properties activationProps;
+    private final InjectedValue<PoolConfig> poolConfig = new InjectedValue<PoolConfig>();
+    private final InjectedValue<DefaultResourceAdapterService> defaultRANameService = new InjectedValue<DefaultResourceAdapterService>();
 
     /**
      * Construct a new instance.
@@ -39,11 +56,86 @@ public class MessageDrivenComponentCreateService extends EJBComponentCreateServi
      */
     public MessageDrivenComponentCreateService(final ComponentConfiguration componentConfiguration, final EjbJarConfiguration ejbJarConfiguration) {
         super(componentConfiguration, ejbJarConfiguration);
+
+        final MessageDrivenComponentDescription componentDescription = (MessageDrivenComponentDescription) componentConfiguration.getComponentDescription();
+        this.resourceAdapterName = this.stripDotRarSuffix(componentDescription.getResourceAdapterName());
+
+        // see MessageDrivenComponentDescription.<init>
+        this.messageListenerInterface = componentConfiguration.getViews().get(0).getViewClass();
+
+        this.activationProps = componentDescription.getActivationProps();
     }
 
     @Override
     protected BasicComponent createComponent() {
-        return new MessageDrivenComponent(this);
+        if (this.resourceAdapterName == null) {
+            this.resourceAdapterName = this.getDefaultResourceAdapterName();
+        }
+        final ServiceName raServiceName = this.getResourceAdapterServiceName();
+
+        final ActivationSpec activationSpec = getEndpointDeployer().createActivationSpecs(resourceAdapterName, messageListenerInterface, activationProps, getDeploymentClassLoader());
+        //final ActivationSpec activationSpec = null;
+        final MessageDrivenComponent component = new MessageDrivenComponent(this, messageListenerInterface, activationSpec);
+        // TODO: should be injected by start service
+        final ResourceAdapter resourceAdapter = getRequiredService(raServiceName, ResourceAdapter.class).getValue();
+        component.setResourceAdapter(resourceAdapter);
+        try {
+            activationSpec.setResourceAdapter(resourceAdapter);
+        } catch (ResourceException e) {
+            throw new RuntimeException(e);
+        }
+        return component;
     }
 
+    PoolConfig getPoolConfig() {
+        return this.poolConfig.getOptionalValue();
+    }
+
+    public InjectedValue<PoolConfig> getPoolConfigInjector() {
+        return this.poolConfig;
+    }
+
+    public InjectedValue<DefaultResourceAdapterService> getDefaultRANameServiceInjector() {
+        return this.defaultRANameService;
+    }
+
+    String getDefaultResourceAdapterName() {
+        final DefaultResourceAdapterService defaultResourceAdapterService = this.defaultRANameService.getOptionalValue();
+        if (defaultResourceAdapterService != null) {
+            return this.stripDotRarSuffix(defaultResourceAdapterService.getDefaultResourceAdapterName());
+        }
+        return "hornetq-ra";
+    }
+
+    private ClassLoader getDeploymentClassLoader() {
+        return getComponentClass().getClassLoader();
+    }
+
+    private EndpointDeployer getEndpointDeployer() {
+        return getEJBUtilities();
+    }
+
+    private <S> ServiceController<S> getRequiredService(final ServiceName serviceName, final Class<S> expectedType) {
+        return (ServiceController<S>) getServiceRegistry().getRequiredService(serviceName);
+    }
+
+    private ServiceRegistry getServiceRegistry() {
+        return getDeploymentUnitInjector().getValue().getServiceRegistry();
+    }
+
+    ServiceName getResourceAdapterServiceName() {
+        // See ResourceAdapterDeploymentService
+        return ServiceName.of(this.resourceAdapterName);
+    }
+
+    private String stripDotRarSuffix(final String raName) {
+        if (raName == null) {
+            return null;
+        }
+        // See RaDeploymentParsingProcessor
+        if (raName.endsWith(".rar")) {
+            return raName.substring(0, raName.indexOf(".rar"));
+        }
+        return raName;
+    }
 }

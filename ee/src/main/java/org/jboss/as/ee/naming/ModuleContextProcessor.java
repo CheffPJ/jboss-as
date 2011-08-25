@@ -26,9 +26,11 @@ import org.jboss.as.ee.component.EEModuleDescription;
 import org.jboss.as.ee.structure.DeploymentType;
 import org.jboss.as.ee.structure.DeploymentTypeMarker;
 import org.jboss.as.naming.NamingStore;
+import org.jboss.as.naming.ServiceBasedNamingStore;
 import org.jboss.as.naming.ValueManagedReferenceFactory;
 import org.jboss.as.naming.deployment.ContextNames;
 import org.jboss.as.naming.service.BinderService;
+import org.jboss.as.naming.service.NamingStoreService;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
@@ -64,14 +66,14 @@ public class ModuleContextProcessor implements DeploymentUnitProcessor {
 
         final ServiceName appContextServiceName = ContextNames.contextServiceNameOfApplication(moduleDescription.getApplicationName());
         final ServiceName moduleContextServiceName = ContextNames.contextServiceNameOfModule(moduleDescription.getApplicationName(), moduleDescription.getModuleName());
-        final RootContextService contextService = new RootContextService();
+        final NamingStoreService contextService = new NamingStoreService();
         serviceTarget.addService(moduleContextServiceName, contextService).install();
 
         final BinderService moduleNameBinder = new BinderService("ModuleName");
 
         serviceTarget.addService(moduleContextServiceName.append("ModuleName"), moduleNameBinder)
                 .addInjection(moduleNameBinder.getManagedObjectInjector(), new ValueManagedReferenceFactory(Values.immediateValue(moduleDescription.getModuleName())))
-                .addDependency(moduleContextServiceName, NamingStore.class, moduleNameBinder.getNamingStoreInjector())
+                .addDependency(moduleContextServiceName, ServiceBasedNamingStore.class, moduleNameBinder.getNamingStoreInjector())
                 .install();
 
         deploymentUnit.putAttachment(MODULE_CONTEXT_CONFIG, moduleContextServiceName);
@@ -80,6 +82,8 @@ public class ModuleContextProcessor implements DeploymentUnitProcessor {
         phaseContext.addDependency(appContextServiceName, NamingStore.class, selector.getAppContextInjector());
         phaseContext.addDependency(moduleContextServiceName, NamingStore.class, selector.getModuleContextInjector());
         phaseContext.addDependency(moduleContextServiceName, NamingStore.class, selector.getCompContextInjector());
+        phaseContext.addDependency(ContextNames.JBOSS_CONTEXT_SERVICE_NAME, NamingStore.class, selector.getJbossContextInjector());
+        phaseContext.addDependency(ContextNames.GLOBAL_CONTEXT_SERVICE_NAME, NamingStore.class, selector.getGlobalContextInjector());
 
         moduleDescription.setNamespaceContextSelector(selector);
 

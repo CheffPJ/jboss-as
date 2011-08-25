@@ -22,6 +22,7 @@
 
 package org.jboss.as.ee.component;
 
+import org.jboss.as.ee.metadata.ClassAnnotationInformation;
 import org.jboss.as.naming.ValueManagedReferenceFactory;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
@@ -31,9 +32,12 @@ import org.jboss.invocation.proxy.MethodIdentifier;
 import org.jboss.msc.value.ConstructedValue;
 import org.jboss.msc.value.Value;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import static org.jboss.as.server.deployment.Attachments.REFLECTION_INDEX;
@@ -50,12 +54,14 @@ public final class EEModuleClassDescription {
     private static final DefaultConfigurator DEFAULT_CONFIGURATOR = new DefaultConfigurator();
 
     private final String className;
-    private final Deque<ClassConfigurator> configurators = new LinkedBlockingDeque();
+    private final Deque<ClassConfigurator> configurators = new LinkedBlockingDeque<ClassConfigurator>();
     private MethodIdentifier postConstructMethod;
     private MethodIdentifier preDestroyMethod;
     private MethodIdentifier aroundInvokeMethod;
+    private MethodIdentifier aroundTimeoutMethod;
     private boolean invalid;
     private StringBuilder invalidMessageBuilder;
+    private final Map<Class<? extends Annotation>, ClassAnnotationInformation<?,?>> annotationInformation = Collections.synchronizedMap(new HashMap<Class<? extends Annotation>, ClassAnnotationInformation<?, ?>>());
 
     public EEModuleClassDescription(final String className) {
         this.className = className;
@@ -87,6 +93,24 @@ public final class EEModuleClassDescription {
      */
     public void setAroundInvokeMethod(final MethodIdentifier aroundInvokeMethod) {
         this.aroundInvokeMethod = aroundInvokeMethod;
+    }
+
+    /**
+     * Get the method, if any, which has been marked as an around-timeout interceptor.
+     *
+     * @return the around-timout method or {@code null} for none
+     */
+    public MethodIdentifier getAroundTimeoutMethod() {
+        return aroundTimeoutMethod;
+    }
+
+    /**
+     * Set the method which has been marked as an around-timeout interceptor.
+     *
+     * @param aroundTimeoutMethod the around-timeout method or {@code null} for none
+     */
+    public void setAroundTimeoutMethod(final MethodIdentifier aroundTimeoutMethod) {
+        this.aroundTimeoutMethod = aroundTimeoutMethod;
     }
 
     /**
@@ -132,6 +156,14 @@ public final class EEModuleClassDescription {
      */
     public Deque<ClassConfigurator> getConfigurators() {
         return configurators;
+    }
+
+    public void addAnnotationInformation(ClassAnnotationInformation annotationInformation) {
+        this.annotationInformation.put(annotationInformation.getAnnotationType(), annotationInformation);
+    }
+
+    public <A extends Annotation, T> ClassAnnotationInformation<A, T> getAnnotationInformation(Class<A> annotationType) {
+        return (ClassAnnotationInformation<A, T>) this.annotationInformation.get(annotationType);
     }
 
     private static class DefaultConfigurator implements ClassConfigurator {
